@@ -1,23 +1,3 @@
-retseq()
-{
-	printf("jmp	retrn\n");
-}
-
-decref(t)
-{
-
-	if ((t & 077770) == 0) {
-		error("Illegal indirection");
-		return(t);
-	}
-	return((t>>2) & 077770 | t&07);
-}
-
-incref(t)
-{
-	return((t<<2)&077740 | (t&07) | 010);
-}
-
 jumpc(tree, lbl, cond)
 int tree[];
 {
@@ -29,15 +9,14 @@ int tree[];
 rcexpr(tree, table)
 int tree[], table;
 {
-	extern space, putwrd, putchar, line;
+	extern space, ospace, putwrd, putchar, line;
 	int c, sp[];
 
-	if (tree == 0)
-		return;
 	putchar('#');
-	c = space;
+	c = space-ospace;
 	c =/ 2;		/* # addresses per word */
-	sp = 0;
+	sp = ospace;
+
 	putwrd(c);
 	putwrd(tree);
 	putwrd(table);
@@ -55,7 +34,19 @@ jump(lab) {
 label(l) {
 	extern printf;
 
-	printf("L%d:", l);
+	printf("l%d:", l);
+}
+
+retseq() {
+	extern printf;
+
+	printf("jmp\tretrn\n");
+}
+
+slabel() {
+	extern csym[], printf;
+
+	printf(".data; l%d: 1f; .text; 1:\n", csym[2]);
 }
 
 setstk(a) {
@@ -80,111 +71,58 @@ setstk(a) {
 	printf("add	$%o,sp\n", ts);
 }
 
-plength(p)
-int p[];
-{
-	int t, l;
+defvec() {
+	extern printf, stack;
 
-	if (((t=p[1])&077770) == 0)		/* not a reference */
-		return(1);
-	p[1] = decref(t);
-	l = length(p);
-	p[1] = t;
-	return(l);
+	printf("mov\tsp,r0\nmov\tr0,-(sp)\n");
+	stack =- 2;
 }
 
-length(cs)
-int cs[];
-{
-	extern hshtab[];
-	int t;
+defstat(s)
+int s[]; {
+	extern printf, length;
+	int len;
 
-	t = cs[1];
-	if ((t&030) == 030)		/* array */
-		t = decref(t);
-	if (t>=010)
+	len = length(s[1]);
+	if (s[3])
+		printf(".data; l%d:1f; .bss; 1:.=.+%o; .even; .text\n", s[2],
+			s[3]*len);
+	else
+		printf(".bss; l%d:.=.+%o; .even; .text\n", s[2], len);
+}
+
+length(t) {
+
+	if (t<0)
+		t =+ 020;
+	if (t>=020)
 		return(2);
-	switch(t&07) {
+	switch(t) {
 
-	case 0:		/* int */
+	case 0:
 		return(2);
 
-	case 1:		/* char */
+	case 1:
 		return(1);
 
-	case 2:		/* float */
+	case 2:
 		return(4);
 
-	case 3:		/* double */
+	case 3:
 		return(8);
 
-	case 4:		/* structure */
-		if (cs>=hshtab)			/* in namelist */
-			return(cs[3]);
-		return(getlen(cs));
+	case 4:
+		return(4);
 
-	case 5:
-		error("Bad structure");
-		return(0);
 	}
-	error("Compiler error (length)");
+	return(1024);
 }
 
-getlen(p)
-int p[];
-{
-	int p1[];
-
-	switch(*p) {
-
-	case 20:		/* name */
-		return(p[2]);
-
-	case 35:
-	case 29:		/* & */
-	case 36:		/* * */
-	case 100:		/* call */
-	case 41:		/* - */
-		return(getlen(p[3]));
-
-	case 40:		/* + */
-		p1 = p[4];
-		if ((p1[1]&07) == 04)
-			return(getlen(p1));
-		return(getlen(p[3]));
-	}
-	error("Unimplemented pointer conversion");
-	return(0);
-}
-
-rlength(cs)
-int cs[];
-{
+rlength(c) {
+	extern length;
 	auto l;
 
-	if (((l=length(cs))&01) != 0)
-		l++;
-	return(l);
-}
-
-tlength(cs)
-int cs[];
-{
-	int nel;
-
-	if ((nel = cs[8]) == 0)
-		nel = 1;
-	return(length(cs)*nel);
-}
-
-trlength(cs)
-int cs[];
-{
-	int l;
-
-	if (((l=tlength(cs))&01) != 0)
-		l++;
-	return(l);
+	return((l=length(c))==1? 2: l);
 }
 
 printn(n,b) {
@@ -239,8 +177,8 @@ loop:
 		putchar('_');
 		c = namsiz;
 		while(c--)
-			if (*s)
-				putchar((*s++)&0177);
+			if(*s)
+				putchar(*s++);
 		goto loop;
 	}
 	putchar('%');

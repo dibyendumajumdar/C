@@ -1,136 +1,94 @@
+function() {
+	extern declare, blkhed, blkend;
+	extern printf, statement, peeksym, cval, symbol, retseq;
+	extern paraml;
+	auto o;
+
+	printf(".text; 1:mov r5,-(sp); mov sp,r5\n");
+	declare(8);
+	declist();
+	statement(1);
+	retseq();
+}
+
 extdef() {
-	extern eof, cval, defsym;
-	extern csym, strflg, xdflg, peeksym, fcval;
-	int o, c, cs[], type, csym[], width, nel, ninit, defsym[];
+	extern eof, function, cval;
+	extern symbol, block, printf, pname, errflush, csym[];
+	extern error;
+	auto o, c, cs[];
 	char s[];
-	float sf;
-	double fcval;
 
 	if(((o=symbol())==0) | o==1)	/* EOF */
 		return;
-	type = 0;
-	if (o==19) {			/* keyword */
-		if ((type=cval)>4)
-			goto syntax;	/* not type */
-	} else {
-		if (o==20)
-			csym[4] =| 0200;	/* remember name */
-		peeksym = o;
-	}
-	defsym = 0;
-	xdflg++;
-	tdeclare(type, 0, 0);
-	if (defsym==0)
-		return;
-	*defsym = 6;
-	cs = &defsym[4];
+	if(o!=20)
+		goto syntax;
+	csym[0] = 6;
+	cs = &csym[4];
 	printf(".globl	%p\n", cs);
-	strflg = 1;
-	xdflg = 0;
-	type = defsym[1];
-	if ((type&030)==020) {		/* a function */
-		printf(".text\n%p:\nmov r5,-(sp); mov sp,r5\n", cs);
-		declist(0);
-		strflg = 0;
-		c = 0;
-		if ((peeksym=symbol())!=2) {	/* { */
-			blkhed();
-			c++;
-		}
-		statement(1);
-		retseq();
-		if (c)
-			blkend();
+	s = ".data; %p:1f\n";
+	switch(o=symbol()) {
+
+	case 6:				/* ( */
+		printf(s, cs);
+		function();
 		return;
-	}
-	width = length(defsym);
-	if ((type&030)==030)	/* array */
-		width = plength(defsym);
-	nel = defsym[8];
-	ninit = 0;
-	if ((peeksym=symbol()) == 1) {	/* ; */
-		printf(".comm	%p,%o\n", &defsym[4], nel*width);
-		peeksym = -1;
-		return;
-	}
-	printf(".data\n%p:", &defsym[4]);
-loop:	{
-		ninit++;
-		switch(o=symbol()) {
-	
-		case 22:			/* string */
-			if (width!=2)
-				bxdec();
-			printf("L%d\n", cval);
-			break;
-	
-		case 41:			/* - const */
-			if ((o=symbol())==23) {	/* float */
-				fcval = -fcval;
-				goto case23;
-			}
-			if (o!=21)
-				goto syntax;
-			cval = -cval;
-	
-		case 21:			/* const */
-			if (width==1)
-				printf(".byte ");
-			if (width>2) {
-				fcval = cval;
-				goto case23;
-			}
-			printf("%o\n", cval);
-			break;
-	
-		case 20:			/* name */
-			if (width!=2)
-				bxdec();
-			printf("%p\n", &csym[4]);
-			break;
-	
-		case 23:
-		case23:
-			if (width==4) {
-				sf = fcval;
-				printf("%o;%o\n", sf);
-				break;
-			}
-			if (width==8) {
-				printf("%o;%o;%o;%o\n", fcval);
-				break;
-			}
-			bxdec();
-			break;
-	
-		default:
+
+	case 21:			/* const */
+		printf(".data; %p: %o\n", cs, cval);
+		if((o=symbol())!=1)	/* ; */
 			goto syntax;
-	
+		return;
+
+	case 1:				/* ; */
+		printf(".bss; %p: .=.+2\n", cs);
+		return;
+
+	case 4:				/* [ */
+		c = 0;
+		if((o=symbol())==21) {	/* const */
+			c = cval<<1;
+			o = symbol();
 		}
-	} if ((o=symbol())==9) goto loop;	/* , */
-	if (o==1) {			/* ; */
+		if(o!=5)		/* ] */
+			goto syntax;
+		printf(s, cs);
+		if((o=symbol())==1) {	/* ; */
+			printf(".bss; 1:.=.+%o\n", c);
+			return;
+		}
+		printf("1:");
+		while(o==21) {		/* const */
+			printf("%o\n", cval);
+			c =- 2;
+			if((o=symbol())==1)	/* ; */
+				goto done;
+			if(o!=9)		/* , */
+				goto syntax;
+			else
+				o = symbol();
+		}
+		goto syntax;
 	done:
-		if (ninit<nel)
-			printf(".=.+%d.\n", (nel-ninit)*width);
+		if(c>0)
+			printf(".=.+%o\n", c);
+		return;
+
+	case 0:				/* EOF */
 		return;
 	}
+
 syntax:
 	error("External definition syntax");
 	errflush(o);
 	statement(0);
 }
 
-bxdec()
-{
-	error("Inconsistent external initialization");
-}
-
 statement(d) {
 	extern symbol, error, blkhed, eof, peeksym;
 	extern blkend, csym[], rcexpr, block[], tree[], regtab[];
 	extern retseq, jumpc, jump, label, contlab, brklab, cval;
-	extern swp[], isn, pswitch, peekc;
-	extern efftab[], deflab, errflush, swtab[], swsiz, branch;
+	extern swp[], isn, pswitch, peekc, slabel;
+	extern efftab[], declare, deflab, errflush, swtab[], swsiz, branch;
 
 	int o, o1, o2, o3, np[];
 
@@ -167,16 +125,14 @@ stmt:
 
 		/* goto */
 		case 10:
-			np = tree();
-			if ((np[1]&030)!=030)	/* not array */
-				np = block(1, 36, 1, np[2]+1, np);
-			rcexpr(block(1,102,0,0,np), regtab);
+			o1 = block(1,102,0,0,tree());
+			rcexpr(o1, regtab);
 			goto semi;
 
 		/* return */
 		case 11:
 			if((peeksym=symbol())==6)	/* ( */
-				rcexpr(block(1,110,0,0,pexpr()), regtab);
+				rcexpr(pexpr(), regtab);
 			retseq();
 			goto semi;
 
@@ -244,13 +200,8 @@ stmt:
 
 		/* case */
 		case 16:
-			if ((o=symbol())!=21) {	/* constant */
-				if (o!=41)	/* - */
-					goto syntax;
-				if ((o=symbol())!=21)
-					goto syntax;
-				cval = - cval;
-			}
+			if ((o=symbol())!=21)	/* constant */
+				goto syntax;
 			if ((o=symbol())!=8)	/* : */
 				goto syntax;
 			if (swp==0) {
@@ -271,9 +222,9 @@ stmt:
 			o1 = brklab;
 			brklab = isn++;
 			np = pexpr();
-			if (np[1]>1 & np[1]<07)
+			if (np[1]>1 & np[1]<16)
 				error("Integer required");
-			rcexpr(block(1,110,0,0,np), regtab);
+			rcexpr(np, regtab);
 			pswitch();
 			brklab = o1;
 			return;
@@ -300,11 +251,11 @@ stmt:
 				error("Redefinition");
 				goto stmt;
 			}
-			csym[0] = 7;
-			csym[1] = 030;	/* int[] */
+			csym[0] = 2;
+			csym[1] = 020;	/* int[] */
 			if (csym[2]==0)
 				csym[2] = isn++;
-			label(csym[2]);
+			slabel();
 			goto stmt;
 		}
 	}
@@ -369,89 +320,74 @@ pswitch() {
 
 blkhed()
 {
-	extern symbol, cval, peeksym, paraml[], parame[];
-	extern error, rlength, setstk, defvec, isn, defstat;
+	extern symbol, cval, declare, peeksym, paraml[], parame[];
+	extern error, length, rlength, setstk, defvec, isn, defstat;
 	extern stack, hshtab[], hshsiz, pssiz;
-	int al, pl, cs[], hl, t[];
+	int o, al, pl, cs[], hl;
 
-	declist(0);
-	stack = al = 0;
+	declist();
+	stack = al = -2;
 	pl = 4;
 	while(paraml) {
 		*parame = 0;
 		paraml = *(cs = paraml);
-		if (cs[1]==2)		/* float args -> double */
-			cs[1] = 3;
 		cs[2] = pl;
 		*cs = 10;
-		if ((cs[1]&030) == 030)		/* array */
-			cs[1] =- 020;		/* set ref */
-		pl =+ rlength(cs);
+		pl =+ rlength(cs[1]);
 	}
 	cs = hshtab;
 	hl = hshsiz;
 	while(hl--) {
-	    if (cs[4]) {
-		if (cs[0]>1 & (cs[1]&07)==05) {  /* referred structure */
-			t = cs[3];
-			cs[3] = t[3];
-			cs[1] = cs[1]&077770 | 04;
-		}
+	    if (cs[4])
 		switch(cs[0]) {
 
 		/* sort unmentioned */
-		case -2:
+		case 0177776:	/* -2 */
 			cs[0] = 5;		/* auto */
 
 		/* auto */
 		case 5:
-			al =- trlength(cs);
+			if (cs[3]) {	/* vector */
+				al =- (cs[3]*length(cs[1]-020)+1) & 077776;
+				setstk(al);
+				defvec(al);
+			}
 			cs[2] = al;
-			break;
+			al =- rlength(cs[1]);
+			goto loop;
 
 		/* parameter */
 		case 10:
 			cs[0] = 5;
-			break;
+			goto loop;
 
 		/* static */
 		case 7:
-			cs[2] = isn;
-			printf(".bss; L%d: .=.+%o; .text\n",
-				isn++, trlength(cs));
-			break;
+			cs[2] = isn++;
+			defstat(cs);
+			goto loop;
 
+		loop:;
 		}
-	    }
-	    cs = cs+pssiz;
+		cs = cs+pssiz;
 	}
 	setstk(al);
 }
 
 blkend() {
-	extern hshtab[], hshsiz, pssiz, hshused, debug;
+	extern hshtab[], hshsiz, pssiz, hshused;
 	auto i, hl;
 
 	i = 0;
 	hl = hshsiz;
 	while(hl--) {
-		if(hshtab[i+4]) {
-if (debug)
-if (hshtab[i]!=1)
-error("%p	%o	%o	%o	%o	%o",
-	&hshtab[i+4],
-	hshtab[i],
-	hshtab[i+1],
-	hshtab[i+2],
-	hshtab[i+3],
-	hshtab[i+8]);
+		if(hshtab[i+4])
 			if (hshtab[i]==0)
 				error("%p undefined", &hshtab[i+4]);
-			if((hshtab[i+4]&0200)==0) {	/* not top-level */
-				hshtab[i+4] = 0;
+			if(hshtab[i]!=1) {	/* not keyword */
 				hshused--;
+				hshtab[i+4] = 0;
 			}
-		}
 		i =+ pssiz;
 	}
 }
@@ -464,19 +400,14 @@ errflush(o) {
 	peeksym  = o;
 }
 
-declist(mosflg)
+declist()
 {
-	extern peeksym, csym[], cval;
-	auto o, offset;
+	extern peeksym, peekc, csym[], cval;
+	auto o;
 
-	offset = 0;
 	while((o=symbol())==19 & cval<10)
-		if (cval<=4)
-			offset = tdeclare(cval, offset, mosflg);
-		else
-			scdeclare(cval);
+		declare(cval);
 	peeksym = o;
-	return(offset);
 }
 
 easystmt()
