@@ -1,171 +1,85 @@
 / C operator tables
 
-.globl	_getwrd
-
-.globl	getw
-.globl	fopen
-.globl	_tmpfil
+.globl fltused; fltused=.
+.globl	_instab
+.globl	_branchtab
 
 .data
-_getwrd: 1f
-.text
-1:
-	tst	buf
-	bne	1f
-	mov	_tmpfil,r0
-	jsr	r5,fopen; buf
-	bes	botchp
-1:
-	jsr	r5,getw; buf
-	bes	botchp
-	rts	pc
-botchp:
-	mov	$1,r0
-	sys	write; botch; ebotch-botch
-	sys	exit
-botch:
-	<Temp file botch.\n>; ebotch:
-.even
-.bss
-buf:	.=.+518.
-.text
-.globl	_opdope
-.globl	_instab
+_instab:
+	80.; 1f; 2f; .text; 1:<mov\0>; 2:<clr\0>; .data
+	60.; 1f; 2f; .text; 1: <cmp\0>; 2: <tst\0>; .data
+	106.; 1b; 2b
+	61.; 1b; 2b
+	62.; 1b; 2b
+	63.; 1b; 2b
+	64.; 1b; 2b
+	65.; 1b; 2b
+	66.; 1b; 2b
+	67.; 1b; 2b
+	68.; 1b; 2b
+	69.; 1b; 2b
+	40.; 1f; 3f; .text; 1:<add\0>; .data
+	70.; 1b; 3f
+	41.; 2f; 4f; .text; 2:<sub\0>; .data
+	71.; 2b; 4f
+	30.; 1b; 3f; .text; 3:<inc\0>; .data
+	31.; 2b; 4f; .text; 4:<dec\0>; .data
+	32.; 1b; 3b
+	33.; 2b; 4b
+	42.; 5f; 5f; .text; 5:<mul>; .data
+	72.; 5b; 5b
+	43.; 6f; 6f; .text; 6:<div\0>; .data
+	73.; 6b; 6b
+	44.; 5b; 6b
+	74.; 5b; 6b
+	45.; 5f; 6f; .text; 	6:<asr\0>; .data
+	75.; 5f; 6b
+	46.; 5f; 6f; .text; 5:<ash\0>; 6:<asl\0>; .data
+	76.; 5b; 6b
+	47.; 5f; 5f; .text; 5:<bic\0>; 6:<bic $1,\0>; .data
+	55.; 5b; 6b
+	85.; 5b; 6b
+	81.; 5f; 6f; .text; 5:<bit\0>; 6:<bit $1,\0>; .data
+	48.; 5f; 6f; .text; 5:<bis\0>; 6:<bis $1,\0>; .data
+	78.; 5b; 6b
+	49.; 5f; 5f; .text; 5:<xor\0>; .data
+	79.; 5b; 5b
+	37.; 1f; 1f; .text; 1:<neg\0>; .data
+	38.; 1f; 1f; .text; 1:<com\0>; .data
 
-_instab:.+2
-	40.; 1f; 1f; .data; 1:<add\0>; .text
-	70.; 1b; 1b
-	41.; 2f; 2f; .data; 2:<sub\0>; .text
-	71.; 2b; 2b
-	30.; 3f; 1b; .data; 3:<inc\0>; .text
-	31.; 4f; 2b; .data; 4:<dec\0>; .text
-	32.; 3b; 1b
-	33.; 4b; 2b
+	98.; 1f; 1f; .text; 1:<*$\0>; .data
+	99.; 1b+2; 1b+2
+	91.; 1f; 1f; .text; 1: <ashc\0>; .data
+	92.; 1b; 1b
+	82.; 1f; 1f; .text; 1:<lmul\0>; .data
+	83.; 1f; 1f; .text; 1:<ldiv\0>; .data
+	84.; 1f; 1f; .text; 1:<lrem\0>; .data
+	86.; 1f; 1f; .text; 1:<almul\0>; .data
+	87.; 1f; 1f; .text; 1:<aldiv\0>; .data
+	88.; 1f; 1f; .text; 1:<alrem\0>; .data
+	0
 
-	45.; 2b; 5f; .data; 5:<ac\0>; .text
-	46.; 6f; 7f; .data; 6:<mov\0>; 7:<(r4)\0>; .text
-	75.; 2b; 5b
-	76.; 6b; 7b
-	43.; 7b; 1f; .data; 1:<divf\0>; .text
-	44.; 5b; 0
-	73.; 7b; 1b
-	74.; 5b; 0
-
-	60.; 0f; 1f; .data; 0:<beq\0>; 1:<bne\0>; .text
+.data
+_branchtab:
+	60.; 0f; 1f; .text; 0:<jeq\0>; 1:<jne\0>; .data
 	61.; 1b; 0b
-	62.; 2f; 5f; .data; 2:<ble\0>; 5:<bgt\0>; .text
-	63.; 3f; 4f; .data; 3:<blt\0>; 4:<bge\0>; .text
+	62.; 2f; 5f; .text; 2:<jle\0>; 5:<jgt\0>; .data
+	63.; 3f; 4f; .text; 3:<jlt\0>; 4:<jge\0>; .data
 	64.; 4b; 3b
 	65.; 5b; 2b
-	66.; 6f; 9f; .data; 6:<blos\0>; 9:<bhi\0>; .text
-	67.; 7f; 8f; .data; 7:<blo\0>; 8:<bhis\0>; .text
+	66.; 6f; 9f; .text; 6:<jlos\0>; 9:<jhi\0>; .data
+	67.; 7f; 8f; .text; 7:<jlo\0>; 8:<jhis\0>; .data
 	68.; 8b; 7b
 	69.; 9b; 6b
-	0
-	.data
-	.even
-	.text
 
-_opdope:.+2
-	00000	/ EOF
-	00000	/ ;
-	00000	/ {
-	00000	/ }
-	36000	/ [
-	02000	/ ]
-	36000	/ (
-	02000	/ )
-	02000	/ :
-	07001	/ ,
-	00000	/ 10
-	00000	/ 11
-	00000	/ 12
-	00000	/ 13
-	00000	/ 14
-	00000	/ 15
-	00000	/ 16
-	00000	/ 17
-	00000	/ 18
-	00000	/ 19
-	00000	/ name
-	00000	/ short constant
-	00000	/ string
-	00000	/ float
-	00000	/ double
-	00000	/ 25
-	00000	/ 26
-	00000	/ 27
-	00000	/ 28
-	00000	/ 29
-	34002	/ ++pre
-	34002	/ --pre
-	34002	/ ++post
-	34002	/ --post
-	34020	/ !un
-	34002	/ &un
-	34020	/ *un
-	34000	/ -un
-	34020	/ ~un
-	00000	/ 39
-	30101	/ +
-	30001	/ -
-	32101	/ *
-	32001	/ /
-	32001	/ %
-	26061	/ >>
-	26061	/ <<
-	20161	/ &
-	16161	/ |
-	16161	/ ^
-	00000	/ 50
-	00000	/ 51
-	00000	/ 52
-	00000	/ 53
-	00000	/ 54
-	00000	/ 55
-	00000	/ 56
-	00000	/ 57
-	00000	/ 58
-	00000	/ 59
-	22105	/ ==
-	22105	/ !=
-	24105	/ <=
-	24105	/ <
-	24105	/ >=
-	24105	/ >
-	24105	/ <p
-	24105	/ <=p
-	24105	/ >p
-	24105	/ >=p
-	12013	/ =+
-	12013	/ =-
-	12013	/ =*
-	12013	/ =/
-	12013	/ =%
-	12053	/ =>>
-	12053	/ =<<
-	12053	/ =&
-	12053	/ =|
-	12053	/ =^
-	12013	/ =
-	00000	/ 81
-	00000	/ 82
-	00000	/ 83
-	00000	/ int -> float
-	00000	/ int -> double
-	00000	/ float -> int
-	00000	/ float -> double
-	00000	/ double -> int
-	00000	/ double -> float
-	14001	/ ?
-	00000	/ 91
-	00000	/ 92
-	00000	/ 93
-	00000	/ int -> float
-	00000	/ int -> double
-	00000	/ float -> double
-	00000	/ int -> int[]
-	00000	/ int -> float[]
-	00000	/ int -> double[]
-	36001	/ call
-	36001	/ mcall
+	260.; 0b; 1b
+	261.; 1b; 0b
+	262.; 2b; 5b
+	263.; 3b; 4b
+	264.; 4b; 3b
+	265.; 5b; 2b
+	266.; 0b; 1b
+	267.; 7f; 8f; .text; 7:</nop\0>; 8:<jbr\0>; .data
+	268.; 8b; 7b
+	269.; 1b; 0b
+	0

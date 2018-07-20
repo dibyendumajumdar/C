@@ -1,189 +1,412 @@
-jumpc(tree, lbl, cond)
-int tree[];
+#
+/*
+ * C compiler, phase 1
+ *
+ *
+ * Handles processing of declarations,
+ * except for top-level processing of
+ * externals.
+ */
+
+#include "c0h.c"
+
+/*
+ * Process a sequence of declaration statements
+ */
+declist(sclass)
 {
-	extern cctab, block, rcexpr;
+	register sc, elsize, offset;
+	int type;
 
-	rcexpr(block(1,easystmt()+103,tree,lbl,cond),cctab);
+	offset = 0;
+	sc = sclass;
+	while ((elsize = getkeywords(&sclass, &type)) != -1) {
+		offset = declare(sclass, type, offset, elsize);
+		sclass = sc;
+	}
+	return(offset+align(INT, offset, 0));
 }
 
-rcexpr(tree, table)
-int tree[], table;
+/*
+ * Read the keywords introducing a declaration statement
+ */
+getkeywords(scptr, tptr)
+int *scptr, *tptr;
 {
-	extern space, ospace, putwrd, putchar, line;
-	int c, sp[];
+	register skw, tkw, longf;
+	int o, elsize, isadecl, ismos;
 
-	putchar('#');
-	c = space-ospace;
-	c =/ 2;		/* # addresses per word */
-	sp = ospace;
+	isadecl = 0;
+	longf = 0;
+	tkw = -1;
+	skw = *scptr;
+	elsize = 0;
+	ismos = skw==MOS;
+	for (;;) {
+		mosflg = ismos;
+		switch ((o=symbol())==KEYW? cval: -1) {
 
-	putwrd(c);
-	putwrd(tree);
-	putwrd(table);
-	putwrd(line);
-	while(c--)
-		putwrd(*sp++);
-}
+		case AUTO:
+		case STATIC:
+		case EXTERN:
+		case REG:
+			if (skw && skw!=cval)
+				error("Conflict in storage class");
+			skw = cval;
+			break;
+	
+		case LONG:
+			longf++;
+			break;
 
-jump(lab) {
-	extern printf;
-
-	printf("jmp\tl%d\n", lab);
-}
-
-label(l) {
-	extern printf;
-
-	printf("l%d:", l);
-}
-
-retseq() {
-	extern printf;
-
-	printf("jmp\tretrn\n");
-}
-
-slabel() {
-	extern csym[], printf;
-
-	printf(".data; l%d: 1f; .text; 1:\n", csym[2]);
-}
-
-setstk(a) {
-	extern printf, stack;
-	auto ts;
-
-	ts = a-stack;
-	stack = a;
-	switch(ts) {
-
-	case 0:
-		return;
-
-	case 0177776:	/* -2 */
-		printf("tst	-(sp)\n");
-		return;
-
-	case 0177774:	/* -4 */
-		printf("cmp	-(sp),-(sp)\n");
-		return;
-	}
-	printf("add	$%o,sp\n", ts);
-}
-
-defvec() {
-	extern printf, stack;
-
-	printf("mov\tsp,r0\nmov\tr0,-(sp)\n");
-	stack =- 2;
-}
-
-defstat(s)
-int s[]; {
-	extern printf, length;
-	int len;
-
-	len = length(s[1]);
-	if (s[3])
-		printf(".data; l%d:1f; .bss; 1:.=.+%o; .even; .text\n", s[2],
-			s[3]*len);
-	else
-		printf(".bss; l%d:.=.+%o; .even; .text\n", s[2], len);
-}
-
-length(t) {
-
-	if (t<0)
-		t =+ 020;
-	if (t>=020)
-		return(2);
-	switch(t) {
-
-	case 0:
-		return(2);
-
-	case 1:
-		return(1);
-
-	case 2:
-		return(4);
-
-	case 3:
-		return(8);
-
-	case 4:
-		return(4);
-
-	}
-	return(1024);
-}
-
-rlength(c) {
-	extern length;
-	auto l;
-
-	return((l=length(c))==1? 2: l);
-}
-
-printn(n,b) {
-	extern putchar;
-	auto a;
-
-	if(a=n/b) /* assignment, not test for equality */
-		printn(a, b); /* recursive */
-	putchar(n%b + '0');
-}
-
-printf(fmt,x1,x2,x3,x4,x5,x6,x7,x8,x9)
-char fmt[]; {
-	extern printn, putchar, namsiz, ncpw;
-	char s[];
-	auto adx[], x, c, i[];
-
-	adx = &x1; /* argument pointer */
-loop:
-	while((c = *fmt++) != '%') {
-		if(c == '\0')
-			return;
-		putchar(c);
-	}
-	x = *adx++;
-	switch (c = *fmt++) {
-
-	case 'd': /* decimal */
-	case 'o': /* octal */
-		if(x < 0) {
-			x = -x;
-			if(x<0)  {	/* - infinity */
-				if(c=='o')
-					printf("100000");
+		case STRUCT:
+			o = STRUCT;
+			elsize = strdec(&o, ismos);
+			cval = o;
+		case INT:
+		case CHAR:
+		case FLOAT:
+		case DOUBLE:
+			if (tkw>=0)
+				error("Type clash");
+			tkw = cval;
+			break;
+	
+		default:
+			peeksym = o;
+			if (isadecl==0)
+				return(-1);
+			if (tkw<0)
+				tkw = INT;
+			if (skw==0)
+				skw = AUTO;
+			if (longf) {
+				if (tkw==FLOAT)
+					tkw = DOUBLE;
+				else if (tkw==INT)
+					tkw = LONG;
 				else
-					printf("-32767");
-				goto loop;
+					error("Misplaced 'long'");
 			}
-			putchar('-');
+			*scptr = skw;
+			*tptr = tkw;
+			return(elsize);
 		}
-		printn(x, c=='o'?8:10);
-		goto loop;
-
-	case 's': /* string */
-		s = x;
-		while(c = *s++)
-			putchar(c);
-		goto loop;
-
-	case 'p':
-		s = x;
-		putchar('_');
-		c = namsiz;
-		while(c--)
-			if(*s)
-				putchar(*s++);
-		goto loop;
+		isadecl++;
 	}
-	putchar('%');
-	fmt--;
-	adx--;
-	goto loop;
 }
 
+/*
+ * Process a structure declaration; a subroutine
+ * of getkeywords.
+ */
+strdec(tkwp, mosf)
+int *tkwp;
+{
+	register elsize, o;
+	register struct hshtab *ssym;
+	int savebits;
+	struct hshtab *ds;
+
+	mosflg = 1;
+	ssym = 0;
+	if ((o=symbol())==NAME) {
+		ssym = csym;
+		if (ssym->hclass==0) {
+			ssym->hclass = STRTAG;
+			ssym->lenp = dimp;
+			chkdim();
+			dimtab[dimp++] = 0;
+		}
+		if (ssym->hclass != STRTAG)
+			redec();
+		mosflg = mosf;
+		o = symbol();
+	}
+	mosflg = 0;
+	if (o != LBRACE) {
+		if (ssym==0) {
+		syntax:
+			decsyn(o);
+			return(0);
+		}
+		if (ssym->hclass!=STRTAG)
+			error("Bad structure name");
+		if ((elsize = dimtab[ssym->lenp&0377])==0) {
+			*tkwp = RSTRUCT;
+			elsize = ssym;
+		}
+		peeksym = o;
+	} else {
+		ds = defsym;
+		mosflg = 0;
+		savebits = bitoffs;
+		bitoffs = 0;
+		elsize = declist(MOS);
+		bitoffs = savebits;
+		defsym = ds;
+		if ((o = symbol()) != RBRACE)
+			goto syntax;
+		if (ssym) {
+			if (dimtab[ssym->lenp&0377])
+				error("%.8s redeclared", ssym->name);
+			dimtab[ssym->lenp&0377] = elsize;
+		}
+	}
+	return(elsize);
+}
+
+/*
+ * Check that the dimension table has not overflowed
+ */
+chkdim()
+{
+	if (dimp >= dimsiz) {
+		error("Dimension/struct table overflow");
+		exit(1);
+	}
+}
+
+/*
+ * Process a comma-separated list of declarators
+ */
+declare(askw, tkw, offset, elsize)
+{
+	register int o;
+	register int skw;
+
+	skw = askw;
+	do {
+		offset =+ decl1(skw, tkw, offset, elsize);
+	} while ((o=symbol()) == COMMA);
+	if (o==SEMI || o==RPARN && skw==ARG1)
+		return(offset);
+	decsyn(o);
+}
+
+/*
+ * Process a single declarator
+ */
+decl1(askw, tkw, offset, elsize)
+{
+	int t1, chkoff, a;
+	register int type, skw;
+	register struct hshtab *dsym;
+
+	skw = askw;
+	chkoff = 0;
+	mosflg = skw==MOS;
+	if ((peeksym=symbol())==SEMI || peeksym==RPARN)
+		return(0);
+	/*
+	 * Filler field
+	 */
+	if (peeksym==COLON && skw==MOS) {
+		peeksym = -1;
+		t1 = conexp();
+		elsize = align(tkw, offset, t1);
+		bitoffs =+ t1;
+		return(elsize);
+	}
+	if ((t1=getype()) < 0)
+		goto syntax;
+	type = 0;
+	do
+		type = type<<TYLEN | (t1 & XTYPE);
+	while (((t1=>>TYLEN) & XTYPE)!=0);
+	type =| tkw;
+	dsym = defsym;
+	if (!(dsym->hclass==0
+	   || (skw==ARG && dsym->hclass==ARG1)
+	   || (skw==EXTERN && dsym->hclass==EXTERN && dsym->htype==type)))
+		if (skw==MOS && dsym->hclass==MOS && dsym->htype==type)
+			chkoff = 1;
+		else {
+			redec();
+			goto syntax;
+		}
+	dsym->htype = type;
+	if (skw)
+		dsym->hclass = skw;
+	if (skw==ARG1) {
+		if (paraml==0)
+			paraml = dsym;
+		else
+			parame->hoffset = dsym;
+		parame = dsym;
+	}
+	if (elsize && ((type&TYPE)==RSTRUCT || (type&TYPE)==STRUCT)) {
+		dsym->lenp = dimp;
+		chkdim();
+		dimtab[dimp++] = elsize;
+	}
+	elsize = 0;
+	if (skw==MOS) {
+		elsize = length(dsym);
+		t1 = 0;
+		if ((peeksym = symbol())==COLON) {
+			elsize = 0;
+			peeksym = -1;
+			t1 = conexp();
+			dsym->hflag =| FFIELD;
+		}
+		a = align(type, offset, t1);
+		elsize =+ a;
+		offset =+ a;
+		if (t1) {
+			if (chkoff && (dsym->bitoffs!=bitoffs
+		 	 || dsym->flen!=t1))
+				redec();
+			dsym->bitoffs = bitoffs;
+			dsym->flen = t1;
+			bitoffs =+ t1;
+		}
+		if (chkoff && dsym->hoffset != offset)
+			redec();
+		dsym->hoffset = offset;
+	}
+	if ((dsym->htype&XTYPE)==FUNC) {
+		if (dsym->hclass!=EXTERN && dsym->hclass!=AUTO)
+			error("Bad function");
+		dsym->hclass = EXTERN;
+	}
+	if (dsym->hclass==AUTO) {
+		autolen =+ rlength(dsym);
+		dsym->hoffset = -autolen;
+	} else if (dsym->hclass==STATIC) {
+		dsym->hoffset = isn;
+		outcode("BBNBNB", BSS, LABEL, isn++,
+		    SSPACE, rlength(dsym), PROG);
+	} else if (dsym->hclass==REG) {
+		if ((type&TYPE)>CHAR && (type&XTYPE)==0
+		 || (type&XTYPE)>PTR || regvar<3)
+			error("Bad register %o", type);
+		dsym->hoffset = --regvar;
+	}
+syntax:
+	return(elsize);
+}
+
+/*
+ * Read a declarator and get the implied type
+ */
+getype()
+{
+	register int o, type;
+	register struct hshtab *ds;
+
+	switch(o=symbol()) {
+
+	case TIMES:
+		return(getype()<<TYLEN | PTR);
+
+	case LPARN:
+		type = getype();
+		if ((o=symbol()) != RPARN)
+			goto syntax;
+		goto getf;
+
+	case NAME:
+		defsym = ds = csym;
+		type = 0;
+		ds->ssp = dimp;
+	getf:
+		switch(o=symbol()) {
+
+		case LPARN:
+			if (xdflg) {
+				xdflg = 0;
+				ds = defsym;
+				declare(ARG1, 0, 0, 0);
+				defsym = ds;
+				xdflg++;
+			} else
+				if ((o=symbol()) != RPARN)
+					goto syntax;
+			type = type<<TYLEN | FUNC;
+			goto getf;
+
+		case LBRACK:
+			chkdim();
+			if ((o=symbol()) != RBRACK) {
+				peeksym = o;
+				cval = conexp();
+				for (o=ds->ssp&0377; o<dimp; o++)
+					dimtab[o] =* cval;
+				dimtab[dimp++] = cval;
+				if ((o=symbol())!=RBRACK)
+					goto syntax;
+			} else
+				dimtab[dimp++] = 1;
+			type = type<<TYLEN | ARRAY;
+			goto getf;
+		}
+		peeksym = o;
+		return(type);
+	}
+syntax:
+	decsyn(o);
+	return(-1);
+}
+
+/*
+ * Enforce alignment restrictions in structures,
+ * including bit-field considerations.
+ */
+align(type, offset, aflen)
+{
+	register a, t, flen;
+	char *ftl;
+
+	flen = aflen;
+	a = offset;
+	t = type;
+	ftl = "Field too long";
+	if (flen==0 && bitoffs) {
+		a =+ (bitoffs-1) / NBPC;
+		bitoffs = 0;
+	}
+	while ((t&XTYPE)==ARRAY)
+		t = decref(t);
+	if (t!=CHAR) {
+		a = (a+ALIGN) & ~ALIGN;
+		if (a>offset)
+			bitoffs = 0;
+	}
+	if (flen) {
+		if (type==INT) {
+			if (flen > NBPW)
+				error(ftl);
+			if (flen+bitoffs > NBPW) {
+				bitoffs = 0;
+				a =+ NCPW;
+			}
+		} else if (type==CHAR) {
+			if (flen > NBPC)
+				error(ftl);
+			if (flen+bitoffs > NCPW) {
+				bitoffs = 0;
+				a =+ 1;
+			}
+		} else
+			error("Bad type for field");
+	}
+	return(a-offset);
+}
+
+/*
+ * Complain about syntax error in declaration
+ */
+decsyn(o)
+{
+	error("Declaration syntax");
+	errflush(o);
+}
+
+/*
+ * Complain about a redeclaration
+ */
+redec()
+{
+	error("%.8s redeclared", defsym->name);
+}
