@@ -5,7 +5,7 @@
  *
  */
 
-#include "c0h.c"
+#include "c0.h"
 
 /*
  * Reduce the degree-of-reference by one.
@@ -36,80 +36,123 @@ incref(t)
  * Make a tree that causes a branch to lbl
  * if the tree's value is non-zero together with the cond.
  */
-cbranch(tree, lbl, cond)
-struct tnode *tree;
+cbranch(t, lbl, cond)
+struct tnode *t;
 {
-	rcexpr(block(1,CBRANCH,tree,lbl,cond));
+	treeout(t, 0);
+	outcode("BNNN", CBRANCH, lbl, cond, line);
 }
 
 /*
  * Write out a tree.
  */
-rcexpr(tree)
-struct tnode *tree;
+rcexpr(atp)
+struct tnode *atp;
 {
+	register struct tnode *tp;
 
-	treeout(tree);
+	/*
+	 * Special optimization
+	 */
+	if ((tp=atp)->op==INIT && tp->tr1->op==CON) {
+		if (tp->type==CHAR) {
+			outcode("B1N0", BDATA, tp->tr1->value);
+			return;
+		} else if (tp->type==INT || tp->type==UNSIGN) {
+			outcode("BN", SINIT, tp->tr1->value);
+			return;
+		}
+	}
+	treeout(tp, 0);
 	outcode("BN", EXPR, line);
 }
 
-treeout(atree)
-struct tnode *atree;
+treeout(atp, isstruct)
+struct tnode *atp;
 {
-	register struct tnode *tree;
+	register struct tnode *tp;
+	register struct hshtab *hp;
+	register nextisstruct;
 
-	if ((tree = atree) == 0)
-		return;
-	switch(tree->op) {
-
-	case 0:
-		outcode("B", NULL);
-		return;
-
-	case NAME:
-		outcode("BNN", NAME, tree->class, tree->type);
-		if (tree->class==EXTERN)
-			outcode("S", tree->nname);
-		else
-			outcode("N", tree->nloc);
-		return;
-
-	case CON:
-	case FCON:
-	case SFCON:
-		outcode("BNN", tree->op, tree->type, tree->value);
-		return;
-
-	case FSEL:
-		treeout(tree->tr1);
-		outcode("BNN", tree->op, tree->type, tree->tr2);
-		return;
-
-	case CBRANCH:
-		treeout(tree->btree);
-		outcode("BNN", tree->op, tree->lbl, tree->cond);
-		return;
-
-	default:
-		treeout(tree->tr1);
-		if (opdope[tree->op]&BINARY)
-			treeout(tree->tr2);
-		outcode("BN", tree->op, tree->type);
+	if ((tp = atp) == 0) {
+		outcode("B", NULLOP);
 		return;
 	}
+	nextisstruct = tp->type==STRUCT;
+	switch(tp->op) {
+
+	case NAME:
+		hp = tp->tr1;
+		if (hp->hclass==TYPEDEF)
+			error("Illegal use of type name");
+		outcode("BNN", NAME, hp->hclass==0?STATIC:hp->hclass, tp->type);
+		if (hp->hclass==EXTERN)
+			outcode("S", hp->name);
+		else
+			outcode("N", hp->hoffset);
+		break;
+
+	case LCON:
+		outcode("BNNN", tp->op, tp->type, tp->lvalue);
+		break;
+
+	case CON:
+		outcode("BNN", tp->op, tp->type, tp->value);
+		break;
+
+	case FCON:
+		outcode("BNF", tp->op, tp->type, tp->cstr);
+		break;
+
+	case STRING:
+		outcode("BNNN", NAME, STATIC, tp->type, tp->tr1);
+		break;
+
+	case FSEL:
+		treeout(tp->tr1, nextisstruct);
+		outcode("BNNN",tp->op,tp->type,tp->tr2->bitoffs,tp->tr2->flen);
+		break;
+
+	case ETYPE:
+		error("Illegal use of type");
+		break;
+
+	case AMPER:
+		treeout(tp->tr1, 1);
+		outcode("BN", tp->op, tp->type);
+		break;
+
+
+	case CALL:
+		treeout(tp->tr1, 1);
+		treeout(tp->tr2, 0);
+		outcode("BN", CALL, tp->type);
+		break;
+
+	default:
+		treeout(tp->tr1, nextisstruct);
+		if (opdope[tp->op]&BINARY)
+			treeout(tp->tr2, nextisstruct);
+		outcode("BN", tp->op, tp->type);
+		break;
+	}
+	if (nextisstruct && isstruct==0)
+		outcode("BNN", STRASG, STRUCT, tp->strp->ssize);
 }
 
 /*
  * Generate a branch
  */
-branch(lab) {
+branch(lab)
+{
 	outcode("BN", BRANCH, lab);
 }
 
 /*
  * Generate a label
  */
-label(l) {
+label(l)
+{
 	outcode("BN", LABEL, l);
 }
 
@@ -122,7 +165,7 @@ plength(ap)
 struct tname *ap;
 {
 	register t, l;
-	register struct tname *p;
+	register struct tnode *p;
 
 	p = ap;
 	if (p==0 || ((t=p->type)&~TYPE) == 0)		/* not a reference */
@@ -140,43 +183,60 @@ struct tname *ap;
 length(acs)
 struct tnode *acs;
 {
-	register t, n;
+	register t, elsz;
+	long n;
 	register struct tnode *cs;
+	int nd;
 
 	cs = acs;
 	t = cs->type;
 	n = 1;
+	nd = 0;
 	while ((t&XTYPE) == ARRAY) {
 		t = decref(t);
-		n = dimtab[cs->ssp&0377];
+		n =* cs->subsp[nd++];
 	}
 	if ((t&~TYPE)==FUNC)
 		return(0);
 	if (t>=PTR)
-		return(2*n);
-	switch(t&TYPE) {
+		elsz = SZPTR;
+	else switch(t&TYPE) {
 
 	case INT:
-		return(2*n);
+	case UNSIGN:
+		elsz = SZINT;
+		break;
 
 	case CHAR:
-		return(n);
+		elsz = 1;
+		break;
 
 	case FLOAT:
+		elsz = SZFLOAT;
+		break;
+
 	case LONG:
-		return(4*n);
+		elsz = SZLONG;
+		break;
 
 	case DOUBLE:
-		return(8*n);
+		elsz = SZDOUB;
+		break;
 
 	case STRUCT:
-		return(n * dimtab[cs->lenp&0377]);
-
-	case RSTRUCT:
-		error("Bad structure");
+		if ((elsz = cs->strp->ssize) == 0)
+			error("Undefined structure");
+		break;
+	default:
+		error("Compiler error (length)");
 		return(0);
 	}
-	error("Compiler error (length)");
+	n *= elsz;
+	if (n >= (unsigned)50000) {
+		error("Warning: very large data structure");
+		nerror--;
+	}
+	return(n);
 }
 
 /*
@@ -198,8 +258,11 @@ simplegoto()
 
 	if ((peeksym=symbol())==NAME && nextchar()==';') {
 		csp = csym;
+		if (csp->hblklev == 0)
+			pushdecl(csp);
 		if (csp->hclass==0 && csp->htype==0) {
 			csp->htype = ARRAY;
+			csp->hflag =| FLABL;
 			if (csp->hoffset==0)
 				csp->hoffset = isn++;
 		}
@@ -232,7 +295,7 @@ spnextchar()
 
 	if ((c = peekc)==0)
 		c = getchar();
-	if (c=='\t')
+	if (c=='\t' || c=='\014')	/* FF */
 		c = ' ';
 	else if (c=='\n') {
 		c = ' ';
@@ -266,7 +329,7 @@ dogoto()
 	*cp++ = tree();
 	build(STAR);
 	chkw(np = *--cp, -1);
-	rcexpr(block(1,JUMP,0,0,np));
+	rcexpr(block(JUMP,0,NULL,NULL,np));
 }
 
 /*
@@ -283,6 +346,8 @@ doret()
 		*cp++ = t;
 		build(ASSIGN);
 		cp[-1] = cp[-1]->tr2;
+		if (funcblk.type==CHAR)
+			cp[-1] = block(ITOC, INT, NULL, NULL, cp[-1]);
 		build(RFORCE);
 		rcexpr(*--cp);
 	}
@@ -290,54 +355,74 @@ doret()
 }
 
 /*
- * write out a character to the usual output
- * or to the string file
+ * Write a character on the error output.
  */
-putchar(c)
-{
-	write(1, &c, 1);
-}
-
+/*
+ * Coded output:
+ *   B: beginning of line; an operator
+ *   N: a number
+ *   S: a symbol (external)
+ *   1: number 1
+ *   0: number 0
+ */
 outcode(s, a)
 char *s;
 {
-	register char *sp;
-	register *ap, *bufp;
+	register *ap;
+	register FILE *bufp;
 	int n;
-	char *np;
+	register char *np;
 
-	bufp = obuf;
+	bufp = stdout;
 	if (strflg)
-		bufp = sbuf;
+		bufp = sbufp;
 	ap = &a;
 	for (;;) switch(*s++) {
 	case 'B':
-		putw(*ap++ | (0376<<8), bufp);
+		putc(*ap++, bufp);
+		putc(0376, bufp);
 		continue;
 
 	case 'N':
-		putw(*ap++, bufp);
+		putc(*ap, bufp);
+		putc(*ap++>>8, bufp);
 		continue;
 
-	case 'S':
+	case 'F':
+		n = 1000;
 		np = *ap++;
-		n = ncps;
+		goto str;
+
+	case 'S':
+		n = NCPS;
+		np = *ap++;
+		if (*np)
+			putc('_', bufp);
+	str:
 		while (n-- && *np) {
-			putc(*np++, bufp);
+			putc(*np++&0177, bufp);
 		}
 		putc(0, bufp);
 		continue;
 
 	case '1':
-		putw(1, bufp);
+		putc(1, bufp);
+		putc(0, bufp);
 		continue;
 
 	case '0':
-		putw(0, bufp);
+		putc(0, bufp);
+		putc(0, bufp);
 		continue;
 
 	case '\0':
+		if (ferror(bufp)) {
+			error("Write error on temp");
+			exit(1);
+		}
 		return;
+
+	default:
+		error("Botch in outcode");
 	}
-	error("Botch in outcode");
 }

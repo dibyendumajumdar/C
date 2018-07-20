@@ -3,22 +3,15 @@
  * C object code improver-- second part
  */
 
-#include "c2h.c"
+#include "c2.h"
 
 rmove()
 {
 	register struct node *p;
-	register char *cp;
 	register int r;
-	int r1, flt;
+	register  r1, flt;
 
 	for (p=first.forw; p!=0; p = p->forw) {
-	if (debug) {
-		for (r=0; r<2*NREG; r++)
-			if (regs[r][0])
-				printf("%d: %s\n", r, regs[r]);
-		printf("-\n");
-	}
 	flt = 0;
 	switch (p->op) {
 
@@ -29,15 +22,24 @@ rmove()
 
 	case MOV:
 		if (p->subop==BYTE)
-			goto badmov;
+			goto dble;
 		dualop(p);
 		if ((r = findrand(regs[RT1], flt)) >= 0) {
-			if (r == flt+isreg(regs[RT2]) && p->forw->op!=CBR) {
+			if (r == flt+isreg(regs[RT2]) && p->forw->op!=CBR
+			   && p->forw->op!=SXT
+			   && p->forw->op!=CFCC) {
 				p->forw->back = p->back;
 				p->back->forw = p->forw;
 				redunm++;
 				continue;
 			}
+		}
+		if (equstr(regs[RT1], "$0")) {
+			p->op = CLR;
+			strcpy(regs[RT1], regs[RT2]);
+			regs[RT2][0] = 0;
+			p->code = copy(1, regs[RT1]);
+			goto sngl;
 		}
 		repladdr(p, 0, flt);
 		r = isreg(regs[RT1]);
@@ -62,6 +64,7 @@ rmove()
 	case DIVF:
 	case MULF:
 		flt = NREG;
+		goto dble;
 
 	case ADD:
 	case SUB:
@@ -70,8 +73,22 @@ rmove()
 	case MUL:
 	case DIV:
 	case ASH:
-	badmov:
+	dble:
 		dualop(p);
+		if (p->op==BIC && (equstr(regs[RT1], "$-1") || equstr(regs[RT1], "$177777"))) {
+			p->op = CLR;
+			strcpy(regs[RT1], regs[RT2]);
+			regs[RT2][0] = 0;
+			p->code = copy(1, regs[RT1]);
+			goto sngl;
+		}
+		if ((p->op==BIC || p->op==BIS) && equstr(regs[RT1], "$0")) {
+			if (p->forw->op!=CBR) {
+				p->back->forw = p->forw;
+				p->forw->back = p->back;
+				continue;
+			}
+		}
 		repladdr(p, 0, flt);
 		source(regs[RT1]);
 		dest(regs[RT2], flt);
@@ -93,13 +110,14 @@ rmove()
 	case ASL:
 	case SXT:
 		singop(p);
+	sngl:
 		dest(regs[RT1], flt);
 		if (p->op==CLR && flt==0)
 			if ((r = isreg(regs[RT1])) >= 0)
 				savereg(r, "$0");
 			else
 				setcon("$0", regs[RT1]);
-		setcc(regs[RT1]);
+		ccloc[0] = 0;
 		continue;
 
 	case TSTF:
@@ -126,11 +144,63 @@ rmove()
 		dualop(p);
 		source(regs[RT1]);
 		source(regs[RT2]);
+		if(p->op==BIT) {
+			if (equstr(regs[RT1], "$-1") || equstr(regs[RT1], "$177777")) {
+				p->op = TST;
+				strcpy(regs[RT1], regs[RT2]);
+				regs[RT2][0] = 0;
+				p->code = copy(1, regs[RT1]);
+				nchange++;
+				nsaddr++;
+			} else if (equstr(regs[RT2], "$-1") || equstr(regs[RT2], "$177777")) {
+				p->op = TST;
+				regs[RT2][0] = 0;
+				p->code = copy(1, regs[RT1]);
+				nchange++;
+				nsaddr++;
+			}
+			if (equstr(regs[RT1], "$0")) {
+				p->op = TST;
+				regs[RT2][0] = 0;
+				p->code = copy(1, regs[RT1]);
+				nchange++;
+				nsaddr++;
+			} else if (equstr(regs[RT2], "$0")) {
+				p->op = TST;
+				strcpy(regs[RT1], regs[RT2]);
+				regs[RT2][0] = 0;
+				p->code = copy(1, regs[RT1]);
+				nchange++;
+				nsaddr++;
+			}
+		}
 		repladdr(p, 1, flt);
 		ccloc[0] = 0;
 		continue;
 
 	case CBR:
+		if (p->back->op==TST || p->back->op==CMP) {
+			if (p->back->op==TST) {
+				singop(p->back);
+				savereg(RT2, "$0");
+			} else
+				dualop(p->back);
+			r = compare(p->subop, findcon(RT1), findcon(RT2));
+			if (r==0) {
+				p->back->back->forw = p->forw;
+				p->forw->back = p->back->back;
+				decref(p->ref);
+				p = p->back->back;
+				nchange++;
+			} else if (r>0) {
+				p->op = JBR;
+				p->subop = 0;
+				p->back->back->forw = p;
+				p->back = p->back->back;
+				p = p->back;
+				nchange++;
+			}
+		}
 	case CFCC:
 		ccloc[0] = 0;
 		continue;
@@ -148,6 +218,7 @@ jumpsw()
 {
 	register struct node *p, *p1;
 	register t;
+	register struct node *tp;
 	int nj;
 
 	t = 0;
@@ -158,10 +229,12 @@ jumpsw()
 		p1 = p->forw;
 		if (p->op == CBR && p1->op==JBR && p->ref && p1->ref
 		 && abs(p->refc - p->ref->refc) > abs(p1->refc - p1->ref->refc)) {
+			if (p->ref==p1->ref)
+				continue;
 			p->subop = revbr[p->subop];
-			t = p1->ref;
+			tp = p1->ref;
 			p1->ref = p->ref;
-			p->ref = t;
+			p->ref = tp;
 			t = p1->labno;
 			p1->labno = p->labno;
 			p->labno = t;
@@ -178,18 +251,69 @@ addsob()
 
 	for (p = &first; (p1 = p->forw)!=0; p = p1) {
 		if (p->op==DEC && isreg(p->code)>=0
-		 && p1->combop==(CBR|JNE<<8)) {
+		 && p1->op==CBR && p1->subop==JNE) {
 			if (p->refc < p1->ref->refc)
 				continue;
-			if (p->refc - p1->ref->refc > 50)
+			if (toofar(p1))
 				continue;
 			p->labno = p1->labno;
-			p->combop = SOB;
+			p->op = SOB;
+			p->subop = 0;
 			p1->forw->back = p;
 			p->forw = p1->forw;
 			nsob++;
 		}
 	}
+}
+
+toofar(p)
+struct node *p;
+{
+	register struct node *p1;
+	int len;
+
+	len = 0;
+	for (p1 = p->ref; p1 && p1!=p; p1 = p1->forw)
+		len += ilen(p1);
+	if (len < 128)
+		return(0);
+	return(1);
+}
+
+ilen(p)
+register struct node *p;
+{
+	register l;
+
+	switch (p->op) {
+	case LABEL:
+	case DLABEL:
+	case TEXT:
+	case EROU:
+	case EVEN:
+		return(0);
+
+	case CBR:
+		return(6);
+
+	default:
+		dualop(p);
+		return(2 + adrlen(regs[RT1]) + adrlen(regs[RT2]));
+	}
+}
+
+adrlen(s)
+register char *s;
+{
+	if (*s == 0)
+		return(0);
+	if (*s=='r')
+		return(0);
+	if (*s=='(' && *(s+1)=='r')
+		return(0);
+	if (*s=='-' && *(s+1)=='(')
+		return(0);
+	return(2);
 }
 
 abs(x)
@@ -204,7 +328,7 @@ struct node *ap1, *p2;
 	register struct node *p1;
 
 	p1 = ap1;
-	if (p1->combop != p2->combop)
+	if (p1->op!=p2->op || p1->subop!=p2->subop)
 		return(0);
 	if (p1->op>0 && p1->op<MOV)
 		return(0);
@@ -220,11 +344,9 @@ struct node *ap1, *p2;
 	return(0);
 }
 
-decref(ap)
+decref(p)
+register struct node *p;
 {
-	register struct node *p;
-
-	p = ap;
 	if (--p->refc <= 0) {
 		nrlab++;
 		p->back->forw = p->forw;
@@ -232,34 +354,32 @@ decref(ap)
 	}
 }
 
-nonlab(ap)
-struct node *ap;
+struct node *
+nonlab(p)
+struct node *p;
 {
-	register struct node *p;
-
-	p = ap;
 	while (p && p->op==LABEL)
 		p = p->forw;
 	return(p);
 }
 
-alloc(an)
+char *
+alloc(n)
+register n;
 {
-	register int n;
 	register char *p;
 
-	n = an;
 	n++;
-	n =& ~01;
+	n &= ~01;
 	if (lasta+n >= lastr) {
-		if (sbrk(2000) == -1) {
-			write(2, "Optimizer: out of space\n", 14);
+		if (sbrk(2000) == (char *)-1) {
+			fprintf(stderr, "C Optimizer: out of space\n");
 			exit(1);
 		}
-		lastr =+ 2000;
+		lastr += 2000;
 	}
 	p = lasta;
-	lasta =+ n;
+	lasta += n;
 	return(p);
 }
 
@@ -300,13 +420,17 @@ char *as;
 	register int i;
 
 	s = as;
+	source(s);
 	if ((i = isreg(s)) >= 0)
 		regs[i+flt][0] = 0;
+	for (i=0; i<NREG+NREG; i++)
+		if (*regs[i]=='*' && equstr(s, regs[i]+1))
+			regs[i][0] = 0;
 	while ((i = findrand(s, flt)) >= 0)
 		regs[i][0] = 0;
 	while (*s) {
 		if ((*s=='(' && (*(s+1)!='r' || *(s+2)!='5')) || *s++=='*') {
-			for (i=flt; i<flt+NREG; i++) {
+			for (i=0; i<NREG+NREG; i++) {
 				if (regs[i][0] != '$')
 					regs[i][0] = 0;
 				conloc[0] = 0;
@@ -416,9 +540,9 @@ struct node *p;
 		r1 = -1;
 	r = findrand(regs[RT1], flt);
 	if (r1 >= NREG)
-		r1 =- NREG;
+		r1 -= NREG;
 	if (r >= NREG)
-		r =- NREG;
+		r -= NREG;
 	if (r>=0 || r1>=0) {
 		p2 = regs[RT1];
 		for (p1 = rt1; *p1++ = *p2++;);
@@ -440,7 +564,7 @@ struct node *p;
 			rt2[3] = 0;
 			nsaddr++;
 		}
-		p->code = copy(rt1, rt2);
+		p->code = copy(2, rt1, rt2);
 	}
 }
 
@@ -454,6 +578,16 @@ movedat()
 
 	if (first.forw == 0)
 		return;
+	if (lastseg != TEXT && lastseg != -1) {
+		p1 = (struct node *)alloc(sizeof(first));
+		p1->op = lastseg;
+		p1->subop = 0;
+		p1->code = NULL;
+		p1->forw = first.forw;
+		p1->back = &first;
+		first.forw->back = p1;
+		first.forw = p1;
+	}
 	datp = &data;
 	for (p1 = first.forw; p1!=0; p1 = p1->forw) {
 		if (p1->op == DATA) {
@@ -478,9 +612,13 @@ movedat()
 		data.forw->back = &first;
 		first.forw = data.forw;
 	}
-	seg = -1;
+	seg = lastseg;
 	for (p1 = first.forw; p1!=0; p1 = p1->forw) {
 		if (p1->op==TEXT||p1->op==DATA||p1->op==BSS) {
+			if (p2 = p1->forw) {
+				if (p2->op==TEXT||p2->op==DATA||p2->op==BSS)
+					p1->op  = p2->op;
+			}
 			if (p1->op == seg || p1->forw&&p1->forw->op==seg) {
 				p1->back->forw = p1->forw;
 				p1->forw->back = p1->back;
@@ -492,10 +630,10 @@ movedat()
 	}
 }
 
-redunbr(ap)
-struct node *ap;
+redunbr(p)
+register struct node *p;
 {
-	register struct node *p, *p1;
+	register struct node *p1;
 	register char *ap1;
 	char *ap2;
 
@@ -514,7 +652,7 @@ struct node *ap;
 	ap1 = findcon(RT1);
 	ap2 = findcon(RT2);
 	p1 = p1->forw;
-	if (compare(p1->subop, ap1, ap2)) {
+	if (compare(p1->subop, ap1, ap2)>0) {
 		nredunj++;
 		nchange++;
 		decref(p->ref);
@@ -524,6 +662,7 @@ struct node *ap;
 	}
 }
 
+char *
 findcon(i)
 {
 	register char *p;
@@ -539,28 +678,23 @@ findcon(i)
 	return(p);
 }
 
-compare(op, acp1, acp2)
-char *acp1, *acp2;
+compare(oper, cp1, cp2)
+register char *cp1, *cp2;
 {
-	register char *cp1, *cp2;
-	register n1;
-	int n2;
-	struct { int i;};
+	register unsigned n1, n2;
 
-	cp1 = acp1;
-	cp2 = acp2;
 	if (*cp1++ != '$' || *cp2++ != '$')
-		return(0);
+		return(-1);
 	n1 = 0;
 	while (*cp2 >= '0' && *cp2 <= '7') {
-		n1 =<< 3;
-		n1 =+ *cp2++ - '0';
+		n1 <<= 3;
+		n1 += *cp2++ - '0';
 	}
 	n2 = n1;
 	n1 = 0;
 	while (*cp1 >= '0' && *cp1 <= '7') {
-		n1 =<< 3;
-		n1 =+ *cp1++ - '0';
+		n1 <<= 3;
+		n1 += *cp1++ - '0';
 	}
 	if (*cp1=='+')
 		cp1++;
@@ -568,34 +702,32 @@ char *acp1, *acp2;
 		cp2++;
 	do {
 		if (*cp1++ != *cp2)
-			return(0);
+			return(-1);
 	} while (*cp2++);
-	cp1 = n1;
-	cp2 = n2;
-	switch(op) {
+	switch(oper) {
 
 	case JEQ:
-		return(cp1 == cp2);
+		return(n1 == n2);
 	case JNE:
-		return(cp1 != cp2);
+		return(n1 != n2);
 	case JLE:
-		return(cp1.i <= cp2.i);
+		return((int)n1 <= (int)n2);
 	case JGE:
-		return(cp1.i >= cp2.i);
+		return((int)n1 >= (int)n2);
 	case JLT:
-		return(cp1.i < cp2.i);
+		return((int)n1 < (int)n2);
 	case JGT:
-		return(cp1.i > cp2.i);
+		return((int)n1 > (int)n2);
 	case JLO:
-		return(cp1 < cp2);
+		return(n1 < n2);
 	case JHI:
-		return(cp1 > cp2);
+		return(n1 > n2);
 	case JLOS:
-		return(cp1 <= cp2);
+		return(n1 <= n2);
 	case JHIS:
-		return(cp1 >= cp2);
+		return(n1 >= n2);
 	}
-	return(0);
+	return(-1);
 }
 
 setcon(ar1, ar2)

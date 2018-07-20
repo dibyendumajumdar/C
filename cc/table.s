@@ -20,6 +20,7 @@ _regtab=.
 	41.;	cr40	/ - like +
 	42.;	cr42
 	43.;	cr43
+	14.;	cr43
 	44.;	cr43
 	45.;	cr45
 	46.;	cr40
@@ -50,6 +51,11 @@ _regtab=.
 	86.;	cr86
 	87.;	cr86
 	88.;	cr86
+	16.;	cr16
+	92.;	cr92
+	17.;	cr43
+	18.;	cr74
+	109.; cr109
 	0
 .text
 
@@ -108,15 +114,18 @@ cr106:
 	mov	#1+2(R),R+
 	mov	#1(R),R
 
+%n,n
+	F
+
 / ++,-- postfix
 cr32:
 %a,1
 	movB1	A1',R
-	I'B1	A1
+	I'B1	A1''
 
 %aw,n
 	mov	A1',R
-	I	A2,A1
+	I	A2,A1''
 
 %e*,1
 	F1*
@@ -156,7 +165,7 @@ cr32:
 	F*
 	mov	#1+2(R),-(sp)
 	mov	#1(R),-(sp)
-	add	$1,#1+2(R)
+	I	$1,#1+2(R)
 	V	#1(R)
 	mov	(sp)+,R
 	mov	(sp)+,R+
@@ -190,7 +199,7 @@ cr80:
 	S
 	movf	R,#1(R)
 
-%n*,a
+%n*,aw
 	F*
 	movB1	A2,#1(R)
 	movB1	#1(R),R
@@ -226,6 +235,41 @@ cr80:
 	FS*
 	S
 	movfo	R,*(sp)+
+
+%al,nl
+	S
+	mov	R+,A1+
+	mov	R,A1
+
+%el*,nl
+	S
+	F1*
+	mov	R+,2+#1(R1)
+	mov	R,#1(R1)
+
+%nl*,nl
+	FS*
+	S
+	mov	R,*(sp)
+	add	$2,(sp)
+	mov	R+,*(sp)+
+
+/ field assign, value in reg.
+cr16:
+%a,n
+	S
+	bicB1	Z,A1'
+	bisB1	R,A1''
+
+%e*,n
+%	[fas1]
+
+%n*,n
+	SS
+	F*
+	bicB1	Z,#1(R)
+	bisB1	(sp),#1(R)
+	mov	(sp)+,R
 
 / +, -, |, &~, <<
 cr40:
@@ -271,8 +315,15 @@ cr40:
 	IBF	(sp)+,R
 
 %nl,c
+%nl,au
 	F
 	I	A2,R+
+	V	R
+
+%nl,eu
+	F
+	S1
+	I	R1,R+
 	V	R
 
 %nl,al
@@ -281,6 +332,7 @@ cr40:
 	I	A2+,R+
 	V	R
 
+%[addl1:]
 %nl,el
 	F
 	S1
@@ -288,6 +340,7 @@ cr40:
 	V	R
 	I	R1,R
 
+%[addl2:]
 %nl,nl
 	SS
 	F
@@ -305,6 +358,17 @@ cr49:
 	S
 	xor	R,(sp)
 	mov	(sp)+,R
+
+%nl,el
+%	[addl1]
+
+%nl,nl
+	SS
+	F
+	I	R,(sp)
+	mov	(sp)+,R
+	I	R+,(sp)
+	mov	(sp)+,R+
 
 / >> (all complicated cases taken care of by << -)
 cr45:
@@ -335,29 +399,25 @@ cr43:
 %n,aw
 	F
 	T
-	sxt	R-
-	div	A2,R-
+	I	A2,R-
 
 %n,ew*
 	F
 	T
-	sxt	R-
 	S1*
-	div	#2(R1),R-
+	I	#2(R1),R-
 
 %n,e
 	F
 	T
-	sxt	R-
 	S1
-	div	R1,R-
+	I	R1,R-
 
 %n,n
 	SS
 	F
 	T
-	sxt	R-
-	div	(sp)+,R-
+	I	(sp)+,R-
 
 %nf,ad
 %	[add1]
@@ -376,26 +436,26 @@ cr70:
 %[addq1:]
 %aw,aw
 	I	A2,A1'
-	mov	A1,R
+	mov	A1'',R
 
 %[addq1a:]
 %a,aw
 %ad,ad
 	movB1	A1',R
 	IBF	A2,R
-	movB1	R,A1
+	movB1	R,A1''
 
 %[addq2:]
 %aw,nw*
 	S*
 	I	#2(R),A1'
-	mov	A1,R
+	mov	A1'',R
 
 %[addq3:]
 %aw,n
 	S
 	I	R,A1'
-	mov	A1,R
+	mov	A1'',R
 
 %[addq4:]
 %ew*,nw*
@@ -409,7 +469,7 @@ cr70:
 	movf	A1',R
 	S1
 	IBF	R1,R
-	movf	R,A1
+	movf	R,A1''
 
 %[addq5:]
 %a,n
@@ -417,14 +477,14 @@ cr70:
 	SS
 	movB1	A1',R
 	IBF	(sp)+,R
-	movB1	R,A1
+	movB1	R,A1''
 
 %[addq6:]
 %af,nf
 	SS
 	movof	A1',R
 	IBF	(sp)+,R
-	movfo	R,A1
+	movfo	R,A1''
 
 %[addq7:]
 %ew*,n
@@ -465,14 +525,53 @@ cr70:
 	movfo	R1,#1(R)
 	movf	R1,R
 
+%al,c
+	I	A2,A1+
+	V	A1
+	F
+
+%al,al
+	I	A2+,A1+
+	V	A1
+	I	A2,A1
+	F
+
+%al,nl
+	S
+	I	R+,A1+
+	V	A1
+	I	R,A1
+	F
+
+%nl*,c
+	F*
+	I	A2,#1+2(R)
+	V	#1(R)
+	mov	#1+2(R),R+
+	mov	#1(R),R
+
+%nl*,al
+	F*
+	I	A2+,#1+2(R)
+	V	#1(R)
+	I	A2,#1(R)
+	mov	#1+2(R),R+
+	mov	#1(R),R
+
+%nl*,nl
+	SS
+	F*
+	I	(sp)+,#1(R)
+	I	(sp)+,#1+2(R)
+	V	#1(R)
+	mov	#1+2(R),R+
+	mov	#1(R),R
+
 / =*, =<< (for integer multiply, R must be odd)
 cr72:
 %a,aw
 %ad,ad
 %	[addq1a]
-
-%af,nf
-%	[addq6]
 
 %ad,ef
 %	[addq4a]
@@ -480,6 +579,9 @@ cr72:
 %a,n
 %ad,nf
 %	[addq5]
+
+%af,nf
+%	[addq6]
 
 %n*,n
 %	[addq9]
@@ -494,31 +596,31 @@ cr72:
 cr73:
 %a,aw
 	movB1	A1',R
-	sxt	R-
-	divBF	A2,R-
-	movB1	R-,A1
+	V	R-
+	IBF	A2,R-
+	movB1	R-,A1''
 
 %a,n
 	SS
 	movB1	A1',R
-	sxt	R-
-	div	(sp)+,R-
-	movB1	R-,A1
+	V	R-
+	I	(sp)+,R-
+	movB1	R-,A1''
 
 %e*,n
 	SS
 	F1*
 	movB1	#1(R1),R
-	sxt	R-
-	div	(sp)+,R-
+	V	R-
+	I	(sp)+,R-
 	movB1	R-,#1(R1)
 
 %n*,n
 	FS*
 	SS
 	movB1	*2(sp),R
-	sxt	R-
-	div	(sp)+,R-
+	V	R-
+	I	(sp)+,R-
 	movB1	R-,*(sp)+
 
 %ad,ad
@@ -543,31 +645,31 @@ cr73:
 cr74:
 %a,aw
 	movB1	A1',R
-	sxt	R-
-	div	A2,R-
-	movB1	R,A1
+	V	R-
+	I	A2,R-
+	movB1	R,A1''
 
 %a,n
 	SS
 	movB1	A1',R
-	sxt	R-
-	div	(sp)+,R-
-	movB1	R,A1
+	V	R-
+	I	(sp)+,R-
+	movB1	R,A1''
 
 %e*,n
 	SS
 	F1*
 	movB1	#1(R1),R
-	sxt	R-
-	div	(sp)+,R-
+	V	R-
+	I	(sp)+,R-
 	movB1	R,#1(R1)
 
 %n*,n
 	FS*
 	SS
 	movB1	*2(sp),R
-	sxt	R-
-	div	(sp)+,R-
+	V	R-
+	I	(sp)+,R-
 	mov	R,*(sp)+
 
 / =^ -- =xor
@@ -580,7 +682,7 @@ cr79:
 	movb	A1',R
 	xor	R,(sp)
 	mov	(sp)+,R
-	movb	R,A1
+	movb	R,A1''
 
 %n*,n
 	FS*
@@ -594,7 +696,7 @@ cr79:
 cr75:
 %a,1
 	asrB1	A1'
-	movB1	A1,R
+	movB1	A1'',R
 
 %n*,1
 	F*
@@ -668,8 +770,22 @@ cr57:
 
 / integer to long
 cr58:
-%n,n
+%eu,n
 	F1!
+	clr	R
+
+%nu,n
+	F
+	mov	R,R1
+	clr	R
+
+%e,n
+	F1!
+	sxt	R
+
+%n,n
+	F
+	mov	R,R1
 	sxt	R
 
 / long to integer
@@ -680,10 +796,6 @@ cr59:
 %nl*,n
 	F*
 	mov	#1+2(R),R
-
-%nl,n
-	F
-	mov	R+,R
 
 / *, /, remainder for longs.
 cr82:
@@ -702,6 +814,12 @@ cr86:
 	jsr	pc,I
 	add	$6,sp
 
+/ convert integer to character (sign extend)
+cr109:
+%n,n
+	F
+	movb	R,R
+
 /
 / c code tables -- compile for side effects.
 / Also set condition codes properly (except for ++, --)
@@ -719,10 +837,12 @@ _efftab=.
 	70.;	ci70
 	71.;	ci70	/ - like +
 	78.;	ci78
+	79.;	ci79
 	85.;	ci78
 	75.;	ci75
 	76.;	ci76
-	92.;	ci92
+	16.;	ci16
+	116.;	ci116
 	0
 .text
 
@@ -800,22 +920,38 @@ ci80:
 	S
 	IB1	R,*(sp)+
 
+%aw,nf
+	S
+	movfi	R,A1
+
+%ew*,nf
+	S
+	F1*
+	movfi	R,#1(R1)
+
 %al,z
 	clr	A1
 	clr	A1+
 
+%nl*,z
+	F*
+	clr	#1(R)
+	clr	2+#1(R)
+
+%[move13a:]
 %al,aw
-	mov	A2,A1+
-	sxt	A1
+	I	A2,A1+
+	V	A1
 
 %al,nw*
+	S*
 	mov	#2(R),A1+
-	sxt	A1
+	V	A1
 
 %al,n
 	S
 	mov	R,A1+
-	sxt	A1
+	V	A1
 
 %al,nf
 	S
@@ -830,11 +966,6 @@ ci80:
 	movfi	R,#1(R1)
 	seti
 
-%[move13a:]
-%al,c
-	I	A2,A1+
-	V	A1
-
 %[move13:]
 %al,al
 	I	A2,A1
@@ -848,12 +979,6 @@ ci80:
 	I	#2+2(R),A1+
 	V	A1
 
-%[move14a:]
-%nl*,c
-	F*
-	I	A2,2+#1(R)
-	V	#1(R)
-
 %[move15:]
 %al,nl
 	S
@@ -861,10 +986,18 @@ ci80:
 	I	R+,A1+
 	V	A1
 
+%[move14a:]
 %nl*,aw
 	F*
-	mov	A2,#1+2(R)
-	sxt	#1(R)
+	I	A2,#1+2(R)
+	V	#1(R)
+
+%[move16a:]
+%nl*,al
+	F*
+	I	A2+,#1+2(R)
+	V	#1(R)
+	I	A2,#1(R)
 
 %[move16:]
 %el*,nl
@@ -878,7 +1011,7 @@ ci80:
 	SS
 	F*
 	mov	(sp)+,#1+2(R)
-	sxt	#1(R)
+	V	#1(R)
 
 %[move17:]
 %nl*,nl
@@ -890,34 +1023,40 @@ ci80:
 
 / =| and =& ~
 ci78:
-%a,a
+%a,aw
+%ab,a
 %	[move3]
 
 %a,n
 %	[move5]
 
-%n*,a
+%n*,aw
+%nb*,a
 %	[move6]
 
-%n*,e*
+%n*,ew*
+%nb*,e*
 %	[move7]
 
 %n*,e
 %	[move8]
 
-%e*,n*
+%e*,nw*
+%eb*,n*
 %	[move9]
 
 %e*,n
 %	[move10]
 
-%n*,n*
+%n*,nw*
+%nb*,n*
 %	[move11]
 
 %n*,n
 %	[move12]
 
 %al,c
+%al,au
 %	[move13a]
 
 %al,al
@@ -932,11 +1071,29 @@ ci78:
 %nl*,c
 %	[move14a]
 
+%nl*,al
+%	[move16a]
+
 %el*,nl
 %	[move16]
 
 %nl*,nl
 %	[move17]
+
+/ =^
+ci79:
+%al,nl
+%	[move15]
+
+%el*,nl
+%	[move16]
+
+%nl*,nl
+	FS*
+	S
+	I	R,*(sp)
+	mov	(sp)+,R
+	I	R+,2(R)
 
 / =+
 ci70:
@@ -965,13 +1122,13 @@ ci70:
 	S*
 	movB1	A1',R1
 	I	#2(R),R1
-	movB1	R1,A1
+	movB1	R1,A1''
 
 %a,n
 	S
 	movB1	A1',R1
 	I	R,R1
-	movB1	R1,A1
+	movB1	R1,A1''
 
 %ew*,n
 %	[move10]
@@ -987,6 +1144,7 @@ ci70:
 	movB1	R1,#1(R)
 
 %al,c
+%al,au
 %	[move13a]
 
 %al,al
@@ -999,7 +1157,11 @@ ci70:
 %	[move15]
 
 %nl*,c
+%nl*,au
 %	[move14a]
+
+%nl*,al
+%	[move16a]
 
 %el*,nl
 %	[move16]
@@ -1037,7 +1199,7 @@ ci76:
 	ash	R,A1
 
 / =<< for longs
-ci92:
+cr92:
 %al,aw
 	F
 	ashc	A2,R
@@ -1059,8 +1221,43 @@ ci92:
 	mov	(R),R
 	ashc	(sp)+,R
 	mov	R,*(sp)
-	mov	(sp)+,R
-	mov	R+,2(R)
+	add	$2,(sp)
+	mov	R+,*(sp)+
+
+/ field = ...
+ci16:
+%a,a
+	bicB1	Z,A1'
+	bisB1	A2,A1''
+
+%a,n
+	S
+	bicB1	Z,A1'
+	bisB1	R,A1''
+
+%n*,a
+	F*
+	bicB1	Z,#1(R)
+	bisB1	A2,#1(R)
+
+%[fas1:]
+%e*,n
+	S
+	F1*
+	bicB1	Z,#1(R1)
+	bisB1	R,#1(R1)
+
+%n*,e
+	F*
+	S1
+	bicB1	Z,#1(R)
+	bisB1	R1,#1(R)
+
+%n*,n
+	SS
+	F*
+	bicB1	Z,#1(R)
+	bisB1	(sp)+,#1(R)
 
 /
 / c code tables-- set condition codes
@@ -1081,8 +1278,6 @@ _cctab=.
 	41.;	rest
 	42.;	rest
 	43.;	rest
-	45.;	rest
-	46.;	rest
 	81.;	cc81	/ & as in "if ((a&b)==0)"
 	48.;	rest
 	60.;	cc60
@@ -1160,6 +1355,102 @@ cc60:
 %nf,nf
 %	[add5]
 
+%al,z
+	tst	A1
+	X0
+	tst	A1+
+	X1
+
+%al,c
+%al,au
+	tst	A1
+	X0
+	cmp	A1+,A2
+	X1
+
+%[lcmp1:]
+%al,al
+	I	A1,A2
+	X0
+	I	A1+,A2+
+	X1
+
+%nl*,z
+	F*
+	tst	#1(R)
+	X0
+	tst	#1+2(R)
+	X1
+
+%nl*,c
+%nl*,au
+	F*
+	tst	#1(R)
+	X0
+	cmp	#1+2(R),A2
+	X1
+
+%[lcmp2:]
+%nl*,al
+	F*
+	I	#1(R),A2
+	X0
+	I	#1+2(R),A2+
+	X1
+
+%nl,z
+	F
+	tst	R
+	X0
+	tst	R+
+	X1
+
+%nl,c
+%nl,au
+	F
+	tst	R
+	X0
+	cmp	R+,A2
+	X1
+
+%[lcmp3:]
+%nl,al
+	F
+	I	R,A2
+	X0
+	I	R+,A2+
+	X1
+
+%[lcmp4:]
+%nl*,el*
+	F*
+	S1*
+	I	#1(R),#2(R1)
+	X0
+	I	#1+2(R),#2+2(R1)
+	X1
+
+%[lcmp5:]
+%nl,el*
+	F
+	S1*
+	I	R,#2(R1)
+	X0
+	I	R+,#2+2(R1)
+	X1
+
+%[lcmp6:]
+%nl,nl
+	FS
+	S
+	mov	R,-(sp)
+	mov	4(sp),R
+	mov	(sp)+,2(sp)
+	I	(sp)+,(sp)+
+	X0
+	I	R,R+
+	X1
+
 / & as in "if ((a&b) ==0)"
 cc81:
 %a,a
@@ -1176,6 +1467,47 @@ cc81:
 
 %n,n
 %	[add5]
+
+%al,c
+%al,au
+	/bit	$0,A1
+	/X0
+	bit	A2,A1+
+	X1
+
+%nl*,c
+%nl*,au
+	F*
+	/bit	$0,#2(R)
+	/X0
+	bit	A2,#2+2(R)
+	X1
+
+%al,al
+%	[lcmp1]
+
+%nl*,al
+%	[lcmp2]
+
+%nl,al
+%	[lcmp3]
+
+%nl*,el*
+%	[lcmp4]
+
+%nl,el*
+%	[lcmp5]
+
+%nl,nl
+%	[lcmp6]
+
+%nl,c
+%nl,au
+	F
+	/bit	$0,R
+	/X0
+	bit	A2,R+
+	X1
 
 / set codes right
 rest:
@@ -1201,7 +1533,6 @@ _sptab=.
 	0
 .text
 
-
 / name
 cs106:
 %z,n
@@ -1221,26 +1552,30 @@ cs106:
 
 / +, -, |, &~
 cs40:
-%n,1
+%a,1
 	FS
 	I'	(sp)
 
-%n,aw
+%a,aw
 	FS
 	I	A2,(sp)
 
-%n,nw*
+%a,nw*
 	FS
 	S*
 	I	#2(R),(sp)
 
-%n,n
+%a,n
 	FS
 	S
 	I	R,(sp)
 
 / integer to long
 cs58:
+%nu,n
+	FS
+	clr	-(sp)
+
 %n,n
 	FS
 	sxt	-(sp)
@@ -1252,4 +1587,15 @@ cs56:
 	setl
 	movfi	R,-(sp)
 	seti
+
+/ setup for structure assign
+ci116:
+%n,e
+	F!
+	S1!
+
+%n,n
+	SS
+	F!
+	mov	(sp)+,r1
 

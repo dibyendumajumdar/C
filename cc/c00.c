@@ -5,22 +5,16 @@
  *
  * Called from cc:
  *   c0 source temp1 temp2 [ profileflag ]
- * temp1 contains some ascii text and the binary expression
- * trees.  Each tree is introduced by the # character.
- * Strings are put on temp2, which cc tacks onto
- * temp1 for assembly.
+ * temp1 gets most of the intermediate code;
+ * strings are put on temp2, which c1 reads after temp1.
  */
 
-#include "c0h.c"
+#include "c0.h"
 
 int	isn	1;
-int	stflg	1;
 int	peeksym	-1;
 int	line	1;
-int	debug	0;
-int	dimp	0;
-struct	tname	funcblk { NAME, 0, 0, REG, 0, 0 };
-int	*treespace { osspace };
+struct	tnode	funcblk { NAME, 0, NULL, NULL, NULL, NULL };
 
 struct kwtab {
 	char	*kwname;
@@ -33,6 +27,9 @@ struct kwtab {
 	"double",	DOUBLE,
 	"struct",	STRUCT,
 	"long",		LONG,
+	"unsigned",	UNSIGN,
+	"union",	UNION,
+	"short",	INT,
 	"auto",		AUTO,
 	"extern",	EXTERN,
 	"static",	STATIC,
@@ -50,29 +47,31 @@ struct kwtab {
 	"default",	DEFAULT,
 	"for",		FOR,
 	"sizeof",	SIZEOF,
+	"typedef",	TYPEDEF,
+	"enum",		ENUM,
 	0,		0,
 };
 
 main(argc, argv)
 char *argv[];
 {
-	extern fin;
 	register char *sp;
 	register i;
 	register struct kwtab *ip;
 
-	if(argc<3) {
+	if(argc<4) {
 		error("Arg count");
 		exit(1);
 	}
-	if((fin=open(argv[1],0))<0) {
+	if (freopen(argv[1], "r", stdin)==NULL) {
 		error("Can't find %s", argv[1]);
 		exit(1);
 	}
-	if (fcreat(argv[2], obuf)<0 || fcreat(argv[3], sbuf)<0) {
+	if (freopen(argv[2], "w", stdout)==NULL || (sbufp=fopen(argv[3],"w"))==NULL) {
 		error("Can't create temp");
 		exit(1);
 	}
+	setbuf(sbufp, sbuf);
 	if (argc>4)
 		proflg++;
 	/*
@@ -85,17 +84,14 @@ char *argv[];
 		i = 0;
 		while (*sp)
 			i =+ *sp++;
-		hshtab[i%hshsiz].hflag = FKEYW;
+		hshtab[i%HSHSIZ].hflag = FKEYW;
 	}
-	while(!eof) {
+	coremax = funcbase = curbase = sbrk(0);
+	while(!eof)
 		extdef();
-		blkend();
-	}
-	outcode("B", EOF);
+	outcode("B", EOFC);
 	strflg++;
-	outcode("B", EOF);
-	fflush(obuf);
-	fflush(sbuf);
+	outcode("B", EOFC);
 	exit(nerror!=0);
 }
 
@@ -113,35 +109,38 @@ lookup()
 
 	ihash = 0;
 	sp = symbuf;
-	if (*sp=='.')
-		sp++;
-	while (sp<symbuf+ncps)
-		ihash =+ *sp++;
-	rp = &hshtab[ihash%hshsiz];
+	while (sp<symbuf+NCPS)
+		ihash =+ *sp++&0177;
+	rp = &hshtab[ihash%HSHSIZ];
 	if (rp->hflag&FKEYW)
 		if (findkw())
 			return(KEYW);
 	while (*(np = rp->name)) {
-		for (sp=symbuf; sp<symbuf+ncps;)
+		for (sp=symbuf; sp<symbuf+NCPS;)
 			if (*np++ != *sp++)
 				goto no;
+		if (mossym != (rp->hflag&FMOS))
+			goto no;
 		csym = rp;
 		return(NAME);
 	no:
-		if (++rp >= &hshtab[hshsiz])
+		if (++rp >= &hshtab[HSHSIZ])
 			rp = hshtab;
 	}
-	if(++hshused >= hshsiz) {
+	if(++hshused >= HSHSIZ) {
 		error("Symbol table overflow");
 		exit(1);
 	}
 	rp->hclass = 0;
 	rp->htype = 0;
 	rp->hoffset = 0;
-	rp->dimp = 0;
-	rp->hflag =| xdflg;
+	rp->subsp = NULL;
+	rp->strp = NULL;
+	rp->hpdown = NULL;
+	rp->hblklev = blklev;
+	rp->hflag =| mossym;
 	sp = symbuf;
-	for (np=rp->name; sp<symbuf+ncps;)
+	for (np=rp->name; sp<symbuf+NCPS;)
 		*np++ = *sp++;
 	csym = rp;
 	return(NAME);
@@ -157,10 +156,10 @@ findkw()
 	register struct kwtab *kp;
 	register char *p1, *p2;
 	char *wp;
+	int firstc;
 
 	wp = symbuf;
-	if (*wp=='.')
-		wp++;
+	firstc = *wp;
 	for (kp=kwtab; (p2 = kp->kwname); kp++) {
 		p1 = wp;
 		while (*p1 == *p2++)
@@ -169,6 +168,7 @@ findkw()
 				return(1);
 			}
 	}
+	*wp = firstc;
 	return(0);
 }
 
@@ -185,6 +185,7 @@ findkw()
 symbol() {
 	register c;
 	register char *sp;
+	register tline;
 
 	if (peeksym>=0) {
 		c = peeksym;
@@ -198,11 +199,39 @@ symbol() {
 		peekc = 0;
 	} else
 		if (eof)
-			return(EOF);
+			return(EOFC);
 		else
 			c = getchar();
 loop:
+	if (c==EOF) {
+		eof++;
+		return(EOFC);
+	}
 	switch(ctab[c]) {
+
+	case SHARP:
+		if ((c=symbol())!=CON) {
+			error("Illegal #");
+			return(c);
+		}
+		tline = cval;
+		while (ctab[peekc]==SPACE)
+			peekc = getchar();
+		if (peekc=='"') {
+			sp = filename;
+			while ((c = mapch('"')) >= 0)
+				*sp++ = c;
+			*sp++ = 0;
+			peekc = getchar();
+		}
+		if (peekc != '\n') {
+			error("Illegal #");
+			while (getchar()!='\n' && eof==0)
+				;
+		}
+		peekc = 0;
+		line = tline;
+		return(symbol());
 
 	case INSERT:		/* ignore newlines */
 		inhdr = 1;
@@ -218,10 +247,6 @@ loop:
 		c = getchar();
 		goto loop;
 
-	case EOF:
-		eof++;
-		return(0);
-
 	case PLUS:
 		return(subseq(c,PLUS,INCBEF));
 
@@ -229,19 +254,30 @@ loop:
 		return(subseq(c,subseq('>',MINUS,ARROW),DECBEF));
 
 	case ASSIGN:
-		if (subseq(' ',0,1)) return(ASSIGN);
-		c = symbol();
-		if (c>=PLUS && c<=EXOR) {
+		c = spnextchar();
+		peekc = 0;
+		if (c=='=')
+			return(EQUAL);
+		if (c==' ')
+			return(ASSIGN);
+		if (c=='<' || c=='>') {
+			if (spnextchar() != c) {
+				peeksym = ctab[c];
+				return(ASSIGN);
+			}
+			peekc = 0;
+			return(c=='<'? ASLSH: ASRSH);
+		}
+		if (ctab[c]>=PLUS && ctab[c]<=EXOR) {
 			if (spnextchar() != ' '
-			 && (c==MINUS || c==AND || c==TIMES)) {
-				error("Warning: assignment operator assumed");
+			 && (c=='-' || c=='&' || c=='*')) {
+				error("Warning: %c= operator assumed", c);
 				nerror--;
 			}
+			c = ctab[c];
 			return(c+ASPLUS-PLUS);
 		}
-		if (c==ASSIGN)
-			return(EQUAL);
-		peeksym = c;
+		peekc = c;
 		return(ASSIGN);
 
 	case LESS:
@@ -255,10 +291,17 @@ loop:
 	case EXCLA:
 		return(subseq('=',EXCLA,NEQUAL));
 
+	case BSLASH:
+		if (subseq('/', 0, 1))
+			return(MAX);
+		goto unkn;
+
 	case DIVIDE:
+		if (subseq('\\', 0, 1))
+			return(MIN);
 		if (subseq('*',1,0))
 			return(DIVIDE);
-		while ((c = spnextchar()) != EOF) {
+		while ((c = spnextchar()) != EOFC) {
 			peekc = 0;
 			if (c=='*') {
 				if (spnextchar() == '/') {
@@ -269,34 +312,35 @@ loop:
 			}
 		}
 		eof++;
-			error("Nonterminated comment");
-			return(0);
+		error("Nonterminated comment");
+		return(0);
 
 	case PERIOD:
 	case DIGIT:
 		peekc = c;
-		if ((c=getnum(c=='0'?8:10)) == FCON)
-			cval = isn++;
-		return(c);
+		return(getnum());
 
 	case DQUOTE:
-		return(getstr());
+		cval = isn++;
+		return(STRING);
 
 	case SQUOTE:
 		return(getcc());
 
 	case LETTER:
 		sp = symbuf;
-		if (mosflg) {
-			*sp++ = '.';
-			mosflg = 0;
-		}
 		while(ctab[c]==LETTER || ctab[c]==DIGIT) {
-			if (sp<symbuf+ncps) *sp++ = c;
+			if (sp<symbuf+NCPS)
+				*sp++ = c;
 			c = getchar();
 		}
-		while(sp<symbuf+ncps)
+		while(sp<symbuf+NCPS)
 			*sp++ = '\0';
+		mossym = 0;
+		if (mosflg) {
+			mossym = FMOS;
+			mosflg = 0;
+		}
 		peekc = c;
 		if ((c=lookup())==KEYW && cval==SIZEOF)
 			c = SIZEOF;
@@ -309,6 +353,7 @@ loop:
 		return(subseq('|', OR, LOGOR));
 
 	case UNKN:
+	unkn:
 		error("Unknown character");
 		c = getchar();
 		goto loop;
@@ -318,7 +363,95 @@ loop:
 }
 
 /*
- * If the next input character is c, return a and advance.
+ * Read a number.  Return kind.
+ */
+getnum()
+{
+	register char *np;
+	register c, base;
+	int expseen, sym, ndigit;
+	char *nsyn;
+	int maxdigit;
+
+	nsyn = "Number syntax";
+	lcval = 0;
+	base = 10;
+	maxdigit = 0;
+	np = numbuf;
+	ndigit = 0;
+	sym = CON;
+	expseen = 0;
+	if ((c=spnextchar()) == '0')
+		base = 8;
+	for (;; c = getchar()) {
+		*np++ = c;
+		if (ctab[c]==DIGIT || (base==16) && ('a'<=c&&c<='f'||'A'<=c&&c<='F')) {
+			if (base==8)
+				lcval =<< 3;
+			else if (base==10)
+				lcval = ((lcval<<2) + lcval)<<1;
+			else
+				lcval =<< 4;
+			if (ctab[c]==DIGIT)
+				c =- '0';
+			else if (c>='a')
+				c =- 'a'-10;
+			else
+				c =- 'A'-10;
+			lcval =+ c;
+			ndigit++;
+			if (c>maxdigit)
+				maxdigit = c;
+			continue;
+		}
+		if (c=='.') {
+			if (base==16 || sym==FCON)
+				error(nsyn);
+			sym = FCON;
+			base = 10;
+			continue;
+		}
+		if (ndigit==0) {
+			sym = DOT;
+			break;
+		}
+		if ((c=='e'||c=='E') && expseen==0) {
+			expseen++;
+			sym = FCON;
+			if (base==16 || maxdigit>=10)
+				error(nsyn);
+			base = 10;
+			*np++ = c = getchar();
+			if (c!='+' && c!='-' && ctab[c]!=DIGIT)
+				break;
+		} else if (c=='x' || c=='X') {
+			if (base!=8 || lcval!=0 || sym!=CON)
+				error(nsyn);
+			base = 16;
+		} else if ((c=='l' || c=='L') && sym==CON) {
+			c = getchar();
+			sym = LCON;
+			break;
+		} else
+			break;
+	}
+	peekc = c;
+	if (maxdigit >= base)
+		error(nsyn);
+	if (sym==FCON) {
+		np[-1] = 0;
+		cval = np-numbuf;
+		return(FCON);
+	}
+	if (sym==CON && (lcval<0 || lcval>MAXINT&&base==10 || (lcval>>1)>MAXINT)) {
+		sym = LCON;
+	}
+	cval = lcval;
+	return(sym);
+}
+
+/*
+ * If the next input character is c, return b and advance.
  * Otherwise push back the character and return a.
  */
 subseq(c,a,b)
@@ -330,46 +463,35 @@ subseq(c,a,b)
 }
 
 /*
- * Read a double-quoted string, placing it on the
- * string buffer.
- */
-getstr()
-{
-	register int c;
-	register char *sp;
-
-	nchstr = 1;
-	sp = savstr;
-	while((c=mapch('"')) >= 0) {
-		nchstr++;
-		if (sp >= &savstr[STRSIZ]) {
-			sp = savstr;
-			error("String too long");
-		}
-		*sp++ = c;
-	}
-	strptr = sp;
-	cval = isn++;
-	return(STRING);
-}
-
-/*
  * Write out a string, either in-line
  * or in the string temp file labelled by
  * lab.
  */
-putstr(lab)
+putstr(lab, amax)
 {
-	register char *sp;
+	register int c, max;
 
+	nchstr = 0;
+	max = amax;
 	if (lab) {
 		strflg++;
 		outcode("BNB", LABEL, lab, BDATA);
+		max = 10000;
 	} else
 		outcode("B", BDATA);
-	for (sp = savstr; sp<strptr; )
-		outcode("1N", *sp++ & 0377);
-	outcode("100");
+	while ((c = mapch('"')) >= 0) {
+		if (nchstr < max) {
+			nchstr++;
+			if (nchstr%15 == 0)
+				outcode("0B", BDATA);
+			outcode("1N", c & 0377);
+		}
+	}
+	if (nchstr < max) {
+		nchstr++;
+		outcode("10");
+	}
+	outcode("0");
 	strflg = 0;
 }
 
@@ -382,15 +504,20 @@ getcc()
 {
 	register int c, cc;
 	register char *ccp;
+	char realc;
 
 	cval = 0;
 	ccp = &cval;
 	cc = 0;
 	while((c=mapch('\'')) >= 0)
-		if(cc++ < NCPW)
+		if(cc++ < LNCPW)
 			*ccp++ = c;
-	if(cc>NCPW)
+	if (cc>LNCPW)
 		error("Long character constant");
+	if (cc==1) {
+		realc = cval;
+		cval = realc;
+	}
 	return(CON);
 }
 
@@ -432,6 +559,12 @@ loop:
 		case 'b':
 			return('\b');
 
+		case 'f':
+			return('\014');
+
+		case 'v':
+			return('\013');
+
 		case '0': case '1': case '2': case '3':
 		case '4': case '5': case '6': case '7':
 			n = 0;
@@ -462,19 +595,20 @@ loop:
  * Read an expression and return a pointer to its tree.
  * It's the classical bottom-up, priority-driven scheme.
  * The initflg prevents the parse from going past
- * "," or ":" because those delimitesrs are special
+ * "," or ":" because those delimiters are special
  * in initializer (and some other) expressions.
  */
+struct tnode *
 tree()
 {
-#define	SEOF	200
-#define	SSIZE	20
 	int *op, opst[SSIZE], *pp, prst[SSIZE];
 	register int andflg, o;
 	register struct hshtab *cs;
 	int p, ps, os;
+	struct tnode *cmst[CMSIZ];
+	struct lnode *lcp;
 
-	space = treespace;
+	curbase = funcbase;
 	op = opst;
 	pp = prst;
 	cp = cmst;
@@ -487,39 +621,55 @@ advanc:
 
 	case NAME:
 		cs = csym;
+		if (cs->hclass==TYPEDEF)
+			goto atype;
+		if (cs->hclass==ENUMCON) {
+			*cp++ = cblock(cs->hoffset);
+			goto tand;
+		}
 		if (cs->hclass==0 && cs->htype==0)
 			if(nextchar()=='(') {
 				/* set function */
 				cs->hclass = EXTERN;
 				cs->htype = FUNC;
-			} else if (initflg)
-				cs->hclass = EXTERN;
-			else {
-				/* set label */
-				cs->htype = ARRAY;
-				if (cs->hoffset==0)
-					cs->hoffset = isn++;
+			} else {
+				cs->hclass = STATIC;
+				error("%.8s undefined; func. %.8s", cs->name, funcsym->name);
+				if (initflg) {
+					cs->hclass = EXTERN;
+					error("(Warning only)");
+					nerror =- 2;
+				}
 			}
-		*cp++ = copname(cs);
+		*cp++ = nblock(cs);
 		goto tand;
 
 	case FCON:
-		if (!initflg)
-			outcode("BBNB1N1N1N1N0B", DATA,LABEL,
-			    cval, WDATA, fcval, PROG);
+		*cp++ = fblock(DOUBLE, copnum(cval));
+		goto tand;
+
+	case LCON:
+		cs = gblock(sizeof(*lcp));
+		cs->op = LCON;
+		cs->type = LONG;
+		cs->lvalue = lcval;
+		*cp++ = cs;
+		goto tand;
 
 	case CON:
-	case SFCON:
-		*cp++ = block(1,o,(o==CON?INT:DOUBLE),0,cval);
+		*cp++ = cblock(cval);
 		goto tand;
 
 	/* fake a static char array */
 	case STRING:
-		putstr(cval);
-		*cp++ = block(3, NAME, ARRAY+CHAR,0,STATIC,0,cval);
+		putstr(cval, 0);
+		cs = gblock(sizeof(*cs));
+		cs->hclass = STATIC;
+		cs->hoffset = cval;
+		*cp++ = block(NAME, ARRAY+CHAR, &nchstr, NULL, cs);
 
-tand:
-		if(cp>=cmst+cmsiz) {
+	tand:
+		if(cp>=cmst+CMSIZ) {
 			error("Expression overflow");
 			exit(1);
 		}
@@ -527,6 +677,24 @@ tand:
 			goto syntax;
 		andflg = 1;
 		goto advanc;
+
+	case KEYW:
+	atype:
+		if (*op != LPARN || andflg)
+			goto syntax;
+		peeksym = o;
+		*cp++ = xprtype(gblock(sizeof(*xprtype())));
+		if ((o=symbol()) != RPARN)
+			goto syntax;
+		o = CAST;
+		--op;
+		--pp;
+		if (*op == SIZEOF) {
+			andflg = 1;
+			*pp = 100;
+			goto advanc;
+		}
+		goto oponst;
 
 	case INCBEF:
 	case DECBEF:
@@ -542,29 +710,19 @@ tand:
 		goto oponst;
 
 	case MINUS:
-		if (!andflg)  {
-			if ((peeksym=symbol())==FCON) {
-				fcval = - fcval;
-				goto advanc;
-			}
-			if (peeksym==SFCON) {
-				fcval = - fcval;
-				cval =^ 0100000;
-				goto advanc;
-			}
+		if (!andflg)
 			o = NEG;
-		}
 		andflg = 0;
 		goto oponst;
 
 	case AND:
 	case TIMES:
 		if (andflg)
-			andflg = 0; else
-			if(o==AND)
-				o = AMPER;
-			else
-				o = STAR;
+			andflg = 0;
+		else if (o==AND)
+			o = AMPER;
+		else
+			o = STAR;
 		goto oponst;
 
 	case LPARN:
@@ -591,16 +749,22 @@ tand:
 		mosflg++;
 		break;
 
+	case ASSIGN:
+		if (andflg==0 && PLUS<=*op && *op<=EXOR) {
+			o = *op-- + ASPLUS - PLUS;
+			pp--;
+			goto oponst;
+		}
+		break;
+
 	}
 	/* binaries */
-	if (!andflg)
+	if (andflg==0)
 		goto syntax;
 	andflg = 0;
 
 oponst:
 	p = (opdope[o]>>9) & 077;
-	if ((o==COMMA || o==COLON) && initflg)
-		p = 05;
 opon1:
 	ps = *pp;
 	if (p>ps || p==ps && (opdope[o]&RASSOC)!=0) {
@@ -614,6 +778,13 @@ opon1:
 		case LBRACK:
 		case CALL:
 			p = 04;
+		}
+		if (initflg) {
+			if ((o==COMMA && *op!=LPARN && *op!=CALL)
+			 || (o==COLON && *op!=QUEST)) {
+				p = 00;
+				goto opon1;
+			}
 		}
 		if (op >= &opst[SSIZE-1]) {
 			error("expression overflow");
@@ -631,6 +802,11 @@ opon1:
 		build(0);		/* flush conversions */
 		return(*--cp);
 
+	case COMMA:
+		if (*op != CALL)
+			os = SEQNC;
+		break;
+
 	case CALL:
 		if (o!=RPARN)
 			goto syntax;
@@ -638,7 +814,7 @@ opon1:
 		goto advanc;
 
 	case MCALL:
-		*cp++ = block(0,0,0,0);	/* 0 arg call */
+		*cp++ = NULL;	/* empty arglist */
 		os = CALL;
 		break;
 
@@ -646,7 +822,7 @@ opon1:
 	case INCAFT:
 	case DECBEF:
 	case DECAFT:
-		*cp++ = block(1, CON, INT, 0, 1);
+		*cp++ = cblock(1);
 		break;
 
 	case LPARN:
@@ -669,41 +845,40 @@ syntax:
 	return(0);
 }
 
-/*
- * Generate a tree node for a name.
- * All the relevant info from the symbol table is
- * copied out, including the name if it's an external.
- * This is because the symbol table is gone in the next
- * pass, so a ptr isn't sufficient.
- */
-copname(acs)
-struct hshtab *acs;
+struct hshtab *
+xprtype(atyb)
+struct hshtab *atyb;
 {
-	register struct hshtab *cs;
-	register struct tname *tp;
-	register char *cp1;
-	int i;
-	char *cp2;
+	register struct hshtab *tyb;
+	struct hshtab typer;
+	int sc;
+	register char *md, *fb;
+	struct tnode *scp;
 
-	cs = acs;
-	tp = gblock(sizeof(*tp)/NCPW);
-	tp->op = NAME;
-	tp->type = cs->htype;
-	tp->dimp = cs->hdimp;
-	if ((tp->class = cs->hclass)==0)
-		tp->class = STATIC;
-	tp->offset = 0;
-	tp->nloc = cs->hoffset;
-	if (cs->hclass==EXTERN) {
-		gblock((ncps-NCPW)/NCPW);
-		cp1 = tp->nname;
-		cp2 = cs->name;
-		i = ncps;
-		do {
-			*cp1++ = *cp2++;
-		} while (--i);
-	}
-	if (cs->hflag&FFIELD)
-		tp->class = FMOS;
-	return(tp);
+	tyb = atyb;
+	fb = funcbase;
+	md = maxdecl;
+	scp = cp;
+	funcbase = curbase;
+	sc = DEFXTRN;		/* will cause error if class mentioned */
+	getkeywords(&sc, &typer);
+	tyb->hclass = 0;
+	tyb->hblklev = 0;
+	decl1(&sc, &typer, 0, tyb);
+	funcbase = fb;
+	maxdecl = md;
+	cp = scp;
+	tyb->op = ETYPE;
+	return(tyb);
+}
+
+char *
+copnum(len)
+{
+	register char *s1, *s2, *s3;
+
+	s1 = s2 = gblock((len+LNCPW-1) & ~(LNCPW-1));
+	s3 = numbuf;
+	while (*s2++ = *s3++);
+	return(s1);
 }

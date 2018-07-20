@@ -1,5 +1,5 @@
 #
-#include "c0h.c"
+#include "c0.h"
 /*
  *  info on operators:
  *   01-- is binary operator
@@ -14,22 +14,22 @@
  * *0XX000-- XX is priority of operator
  */
 int opdope[] {
-	000000,	/* EOF */
+	000000,	/* EOFC */
 	000000,	/* ; */
 	000000,	/* { */
 	000000,	/* } */
 	036000,	/* [ */
 	002000,	/* ] */
-	036000,	/* ( */
+	037000,	/* ( */
 	002000,	/* ) */
 	014201,	/* : */
 	007001,	/* , */
-	000000,	/* field selection */
-	000000,	/* 11 */
-	000000,	/* 12 */
-	000000,	/* 13 */
-	000000,	/* 14 */
-	000000,	/* 15 */
+	000001,	/* field selection */
+	034201,	/* CAST */
+	000000,	/* ETYPE */
+	000001,	/* integer->ptr */
+	000001,	/* ptr->integer */
+	000001,	/* long->ptr */
 	000000,	/* 16 */
 	000000,	/* 17 */
 	000000,	/* 18 */
@@ -39,8 +39,8 @@ int opdope[] {
 	000400,	/* string */
 	000400,	/* float */
 	000400,	/* double */
-	000000,	/* 25 */
-	000000,	/* 26 */
+	000400,	/* long constant */
+	000400,	/* long constant <= 16 bits */
 	000000,	/* 27 */
 	000000,	/* 28 */
 	000000, /* 29 */
@@ -48,7 +48,7 @@ int opdope[] {
 	034203,	/* --pre */
 	034203,	/* ++post */
 	034203,	/* --post */
-	034220,	/* !un */
+	034200,	/* !un */
 	034202,	/* &un */
 	034220,	/* *un */
 	034200,	/* -un */
@@ -107,11 +107,11 @@ int opdope[] {
 	014201,	/* ? */
 	034200,	/* sizeof */
 	000000,	/* 92 */
-	000000,	/* 93 */
-	000000,	/* 94 */
-	000000,	/* 95 */
-	000000,	/* 96 */
-	000000,	/* 97 */
+	021101,	/* min */
+	021101,	/* minp */
+	021101,	/* max */
+	021101,	/* maxp */
+	007001,	/* , */
 	000000,	/* 98 */
 	000000,	/* 99 */
 	036001,	/* call */
@@ -123,7 +123,7 @@ int opdope[] {
 	000000, /* 106 */
 	000000,	/* 107 */
 	000000,	/* 108 */
-	000000,	/* 109 */
+	000000,	/* char->int */
 	000000	/* force r0 */
 };
 
@@ -137,6 +137,7 @@ int opdope[] {
  * LTF: long to float
  * FTL: float to long
  * PTI: pointer to integer
+ * LTP: long to ptr (ptr[long])
  * XX: usually illegal
  * When FTI, LTI, FTL are added in they specify
  * that it is the left operand that should be converted.
@@ -149,26 +150,33 @@ char cvtab[4][4] {
 /*		int	double		long		ptr */
 /* int */	0,	(FTI<<4)+ITF,	(LTI<<4)+ITL,	(ITP<<4)+ITP,	
 /* double */	ITF,	0,		LTF,		XX,
-/* long */	ITL,	(FTL<<4)+LTF,	0,		XX,
-/* ptr */	ITP,	XX,		XX,		PTI
+/* long */	ITL,	(FTL<<4)+LTF,	0,		(LTP<<4)+LTP,
+/* ptr */	ITP,	XX,		LTP,		PTI,
+};
+
+/*
+ * relate conversion numbers to operators
+ */
+char	cvntab[] {
+	0, ITOF, ITOL, LTOF, ITOP, PTOI, FTOI, LTOI, FTOL, LTOP,
 };
 
 /*
  * character type table
  */
 char ctab[] {
-	EOF,	INSERT,	UNKN,	UNKN,	UNKN,	UNKN,	UNKN,	UNKN,
-	UNKN,	SPACE,	NEWLN,	UNKN,	UNKN,	UNKN,	UNKN,	UNKN,
+	EOFC,	INSERT,	UNKN,	UNKN,	UNKN,	UNKN,	UNKN,	UNKN,
+	UNKN,	SPACE,	NEWLN,	SPACE,	SPACE,	UNKN,	UNKN,	UNKN,
 	UNKN,	UNKN,	UNKN,	UNKN,	UNKN,	UNKN,	UNKN,	UNKN,
 	UNKN,	UNKN,	UNKN,	UNKN,	UNKN,	UNKN,	UNKN,	UNKN,
-	SPACE,	EXCLA,	DQUOTE,	UNKN,	UNKN,	MOD,	 AND,	SQUOTE,
+	SPACE,	EXCLA,	DQUOTE,	SHARP,	UNKN,	MOD,	AND,	SQUOTE,
 	LPARN,	RPARN,	TIMES,	PLUS,	COMMA,	MINUS,	PERIOD,	DIVIDE,
 	DIGIT,	DIGIT,	DIGIT,	DIGIT,	DIGIT,	DIGIT,	DIGIT,	DIGIT,
 	DIGIT,	DIGIT,	COLON,	SEMI,	LESS,	ASSIGN,	GREAT,	QUEST,
 	UNKN,	LETTER,	LETTER,	LETTER,	LETTER,	LETTER,	LETTER,	LETTER,
 	LETTER,	LETTER,	LETTER,	LETTER,	LETTER,	LETTER,	LETTER,	LETTER,
 	LETTER,	LETTER,	LETTER,	LETTER,	LETTER,	LETTER,	LETTER,	LETTER,
-	LETTER,	LETTER,	LETTER,	LBRACK,	UNKN,	RBRACK,	EXOR,	LETTER,
+	LETTER,	LETTER,	LETTER,	LBRACK,	BSLASH,	RBRACK,	EXOR,	LETTER,
 	UNKN,	LETTER,	LETTER,	LETTER,	LETTER,	LETTER,	LETTER,	LETTER,
 	LETTER,	LETTER,	LETTER,	LETTER,	LETTER,	LETTER,	LETTER,	LETTER,
 	LETTER,	LETTER,	LETTER,	LETTER,	LETTER,	LETTER,	LETTER,	LETTER,
