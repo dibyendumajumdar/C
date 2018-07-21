@@ -1,29 +1,42 @@
-#
 /*
-* 	C compiler-- first pass header
-*/
+ * 	C compiler-- first pass header
+ */
 
 #include <stdio.h>
 
 /*
- * parameters
- */
+ * This parameter is the _only_ one which affects the recognized length
+ * of symbols.  Symbol names are dynamically allocated and null terminated
+ * now, the define below is the 'cutoff' or maximum length to permit.
+ *
+ * NOTE: there are _exactly_ 4 references to this in all of c0.  There are
+ * _NO_ references to it in c1.  Just make sure that the value is less than
+ * 79 and c1 will be oblivious to the length of a symbol name.
+ *
+ * NOTE: The optimizer (c2) needs to be updated if the size of a symbol
+ * changes.  See the file c2.h
+*/
+
+#define	MAXCPS	32	/* # chars per symbol */
 
 #define	LTYPE	long	/* change to int if no long consts */
 #define	MAXINT	077777	/* Largest positive short integer */
 #define	MAXUINT	0177777	/* largest unsigned integer */
-#define	NCPS	8	/* # chars per symbol */
-#define	HSHSIZ	400	/* # entries in hash table for names */
+#define	HSHSIZ	300	/* # entries in hash table for names */
 #define	CMSIZ	40	/* size of expression stack */
-#define	SSIZE	20	/* size of other expression stack */
-#define	SWSIZ	230	/* size of switch table */
+#define	SSIZE	40	/* size of other expression stack */
+#define	SWSIZ	300	/* size of switch table */
 #define	NMEMS	128	/* Number of members in a structure */
 #define	NBPW	16	/* bits per word, object machine */
 #define	NBPC	8	/* bits per character, object machine */
 #define	NCPW	2	/* chars per word, object machine */
 #define	LNCPW	2	/* chars per word, compiler's machine */
-#define	STAUTO	(-6)	/* offset of first auto variable */
+#define	LNBPW	16	/* bits per word, compiler's machine */
+/* dlf change
+#define	STAUTO	(-6)	 offset of first auto variable */
+int	STAUTO;
 #define	STARG	4	/* offset of first argument */
+#define	DCLSLOP	512	/* Amount trees lie above declaration stuff */
 
 
 /*
@@ -37,19 +50,37 @@
 #define	SZDOUB	8
 
 /*
- * format of a structure description
+ * Structure of namelist
  */
-struct str {
-	int	ssize;			/* structure size */
-	struct hshtab 	**memlist;	/* member list */
+struct nmlist {
+	char	hclass;		/* storage class */
+	char	hflag;		/* various flags */
+	int	htype;		/* type */
+	int	*hsubsp;	/* subscript list */
+	union	str *hstrp;	/* structure description */
+	int	hoffset;	/* post-allocation location */
+	struct	nmlist *nextnm;	/* next name in chain */
+	union	str *sparent;	/* Structure of which this is member */
+	char	hblklev;	/* Block level of definition */
+	char	*name;		/* ASCII name */
 };
 
 /*
- * For fields, strp points here instead.
+ * format of a structure description
+ *  Same gadget is also used for fields,
+ *  which can't be structures also.
+ * Finally, it is used for parameter collection.
  */
-struct field {
-	int	flen;		/* field width in bits */
-	int	bitoffs;	/* shift count */
+union str {
+	struct SS {
+		int	ssize;			/* structure size */
+		struct nmlist **memlist;	/* member list */
+	} S;
+	struct FS {
+		int	flen;			/* field width in bits */
+		int	bitoffs;		/* shift count */
+	} F;
+	struct nmlist P;
 };
 
 /*
@@ -59,9 +90,9 @@ struct tnode {
 	int	op;		/* operator */
 	int	type;		/* data type */
 	int	*subsp;		/* subscript list (for arrays) */
-	struct	str *strp;	/* structure description for structs */
-	struct	tnode *tr1;	/* left operand */
-	struct	tnode *tr2;	/* right operand */
+	union	str *strp;	/* structure description for structs */
+	union	tree *tr1;	/* left operand */
+	union	tree *tr2;	/* right operand */
 };
 
 /*
@@ -71,7 +102,7 @@ struct	cnode {
 	int	op;
 	int	type;
 	int	*subsp;
-	struct	str *strp;
+	union	str *strp;
 	int	value;
 };
 
@@ -82,8 +113,8 @@ struct lnode {
 	int	op;
 	int	type;
 	int	*subsp;
-	struct	str *strp;
-	LTYPE	lvalue;
+	union	str *strp;
+	long	lvalue;
 };
 
 /*
@@ -94,41 +125,22 @@ struct	fnode {
 	int	op;
 	int	type;
 	int	*subsp;
-	struct	str *strp;
+	union	str *strp;
 	char	*cstr;
 };
 
 /*
- * Structure of namelist
+ * All possibilities for tree nodes
  */
-/*
- * Pushed-down entry for block structure
- */
-struct	phshtab {
-	char	hclass;
-	char	hflag;
-	int	htype;
-	int	*hsubsp;
-	struct	str *hstrp;
-	int	hoffset;
-	struct	phshtab *hpdown;
-	char	hblklev;
+union tree {
+	struct	tnode t;
+	struct	cnode c;
+	struct	lnode l;
+	struct	fnode f;
+	struct	nmlist n;
+	struct	FS fld;
 };
 
-/*
- * Top-level namelist
- */
-struct hshtab {
-	char	hclass;		/* storage class */
-	char	hflag;		/* various flags */
-	int	htype;		/* type */
-	int	*hsubsp;	/* subscript list */
-	struct	str *hstrp;	/* structure description */
-	int	hoffset;	/* post-allocation location */
-	struct	phshtab *hpdown;	/* Pushed-down name in outer block */
-	char	hblklev;	/* Block level of definition */
-	char	name[NCPS];	/* ASCII name */
-};
 
 /*
  * Place used to keep dimensions
@@ -147,16 +159,19 @@ struct swtab {
 	int	swval;
 };
 
+#define	TNULL	(union tree *)NULL
+
 char	cvtab[4][4];
 char	filename[64];
 int	opdope[];
 char	ctab[];
-char	symbuf[NCPS+2];
-int	hshused;
-struct	hshtab	hshtab[HSHSIZ];
-struct	tnode **cp;
+char	symbuf[MAXCPS+2];
+struct	nmlist	*hshtab[HSHSIZ];
+int	kwhash[(HSHSIZ+LNBPW-1)/LNBPW];
+union	tree **cp;
 int	isn;
 struct	swtab	swtab[SWSIZ];
+int	unscflg;
 struct	swtab	*swp;
 int	contlab;
 int	brklab;
@@ -168,24 +183,23 @@ int	peeksym;
 int	peekc;
 int	eof;
 int	line;
-char	*funcbase;
-char	*curbase;
+char	*locbase;
+char	*treebase;
+char	*treebot;
 char	*coremax;
-char	*maxdecl;
-struct	hshtab	*defsym;
-struct	hshtab	*funcsym;
+struct	nmlist	*defsym;
+struct	nmlist	*funcsym;
 int	proflg;
-struct	hshtab	*csym;
+struct	nmlist	*csym;
 int	cval;
 LTYPE	lcval;
 int	nchstr;
 int	nerror;
-struct	hshtab	**paraml;
-struct	hshtab	**parame;
+struct	nmlist *paraml;
+struct	nmlist *parame;
 int	strflg;
 int	mosflg;
 int	initflg;
-int	inhdr;
 char	sbuf[BUFSIZ];
 FILE	*sbufp;
 int	regvar;
@@ -193,9 +207,10 @@ int	bitoffs;
 struct	tnode	funcblk;
 char	cvntab[];
 char	numbuf[64];
-struct	hshtab **memlist;
+struct	nmlist **memlist;
+union	str *sparent;
 int	nmems;
-struct	hshtab	structhole;
+struct	nmlist	structhole;
 int	blklev;
 int	mossym;
 
@@ -203,7 +218,6 @@ int	mossym;
   operators
 */
 #define	EOFC	0
-#define	NULLOP	218
 #define	SEMI	1
 #define	LBRACE	2
 #define	RBRACE	3
@@ -225,6 +239,8 @@ int	mossym;
 #define	SFCON	24
 #define	LCON	25
 #define	SLCON	26
+#define	NULLOP	29
+#define	XNULLOP	218	/* interface version */
 
 #define	SIZEOF	91
 #define	INCBEF	30
@@ -315,22 +331,24 @@ int	mossym;
 #define	STRUCT	4
 #define	LONG	6
 #define	UNSIGN	7
+#define	UNCHAR	8
+#define	UNLONG	9
+#define	VOID	10
 #define	UNION	8		/* adjusted later to struct */
 
 #define	ALIGN	01
-#define	TYPE	07
+#define	TYPE	017
 #define	BIGTYPE	060000
 #define	TYLEN	2
-#define	XTYPE	(03<<3)
-#define	PTR	010
-#define	FUNC	020
-#define	ARRAY	030
+#define	XTYPE	(03<<4)
+#define	PTR	020
+#define	FUNC	040
+#define	ARRAY	060
 
 /*
   storage classes
 */
 #define	KEYWC	1
-#define	DEFXTRN	20
 #define	TYPEDEF	9
 #define	MOS	10
 #define	AUTO	11
@@ -341,6 +359,7 @@ int	mossym;
 #define ARG	16
 #define	ARG1	17
 #define	AREG	18
+#define	DEFXTRN	20
 #define	MOU	21
 #define	ENUMTAG	22
 #define	ENUMCON	24
@@ -361,6 +380,7 @@ int	mossym;
 #define	DEFAULT	30
 #define	FOR	31
 #define	ENUM	32
+#define	ASM	33
 
 /*
   characters
@@ -399,6 +419,7 @@ int	mossym;
 #define	ANAME	217
 #define	SETSTK	219
 #define	SINIT	220
+#define	ASSEM	223
 
 /*
   Flag bits
@@ -413,6 +434,7 @@ int	mossym;
 #define	COMMUTE	0100
 #define	RASSOC	0200
 #define	LEAF	0400
+#define	PCVOK	040000
 
 /*
  * Conversion codes
@@ -434,7 +456,10 @@ int	mossym;
  */
 
 #define	FMOS	01
-#define	FKEYW	04
+#define	FTAG	02
+#define	FENUM	03
+#define	FUNION	04
+#define	FKIND	07
 #define	FFIELD	020
 #define	FINIT	040
 #define	FLABL	0100
@@ -443,16 +468,22 @@ int	mossym;
  * functions
  */
 char	*sbrk();
-struct	tnode *tree();
+union	tree *tree();
 char	*copnum();
-struct	tnode *convert();
-struct	tnode *chkfun();
-struct	tnode *disarray();
-struct	tnode *block();
-struct	cnode *cblock();
-struct	fnode *fblock();
-char	*gblock();
-struct	tnode *pexpr();
-struct	str *strdec();
-struct	hshtab *xprtype();
-struct	tnode *nblock();
+union	tree *convert();
+union	tree *chkfun();
+union	tree *disarray();
+union	tree *block();
+union	tree *cblock();
+union	tree *fblock();
+char	*Dblock();
+char	*Tblock();
+char	*starttree();
+union	tree *pexpr();
+union	str *strdec();
+union	tree *xprtype();
+struct	nmlist *pushdecl();
+unsigned hash();
+union	tree *structident();
+struct	nmlist *gentemp();
+union	tree *nblock();

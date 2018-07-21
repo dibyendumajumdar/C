@@ -1,4 +1,3 @@
-#
 #include "c0.h"
 /*
  *  info on operators:
@@ -13,12 +12,12 @@
  * 0400-- is leaf of tree
  * *0XX000-- XX is priority of operator
  */
-int opdope[] {
+int opdope[] = {
 	000000,	/* EOFC */
 	000000,	/* ; */
 	000000,	/* { */
 	000000,	/* } */
-	036000,	/* [ */
+	036001,	/* [ */
 	002000,	/* ] */
 	037000,	/* ( */
 	002000,	/* ) */
@@ -43,19 +42,19 @@ int opdope[] {
 	000400,	/* long constant <= 16 bits */
 	000000,	/* 27 */
 	000000,	/* 28 */
-	000000, /* 29 */
-	034203,	/* ++pre */
-	034203,	/* --pre */
-	034203,	/* ++post */
-	034203,	/* --post */
+	000400, /* () empty arglist */
+	074203,	/* ++pre */
+	074203,	/* --pre */
+	074203,	/* ++post */
+	074203,	/* --post */
 	034200,	/* !un */
 	034202,	/* &un */
 	034220,	/* *un */
 	034200,	/* -un */
 	034220,	/* ~un */
 	036001,	/* . (structure reference) */
-	030101,	/* + */
-	030001,	/* - */
+	070101,	/* + */
+	070001,	/* - */
 	032101,	/* * */
 	032001,	/* / */
 	032001,	/* % */
@@ -84,16 +83,16 @@ int opdope[] {
 	024005,	/* <=p */
 	024005,	/* >p */
 	024005,	/* >=p */
-	012213,	/* =+ */
-	012213,	/* =- */
-	012213,	/* =* */
-	012213,	/* =/ */
-	012213,	/* =% */
-	012253,	/* =>> */
-	012253,	/* =<< */
-	012253,	/* =& */
-	012253,	/* =| */
-	012253,	/* =^ */
+	052213,	/* += */
+	052213,	/* -= */
+	012213,	/* *= */
+	012213,	/* /= */
+	012213,	/* %= */
+	012253,	/* >>= */
+	012253,	/* <<= */
+	012253,	/* &= */
+	012253,	/* |= */
+	012253,	/* ^= */
 	012213,	/* = */
 	000000,	/* 81 */
 	000000,	/* 82 */
@@ -124,7 +123,27 @@ int opdope[] {
 	000000,	/* 107 */
 	000000,	/* 108 */
 	000000,	/* char->int */
-	000000	/* force r0 */
+	000000,	/* 109 - force r0 */
+	000000, /* 110 */
+	000000, /* 111 */
+	000000, /* 112 */
+	000000, /* 113 */
+	000000, /* 114 */
+	000000, /* 115 */
+	000000, /* 116 */
+	000000, /* 117 */
+	000000, /* 118 */
+	000000, /* 119 */
+	000000, /* 120 */
+	000000, /* 121 */
+	000000, /* 122 */
+	000000, /* 123 */
+	000000, /* 124 */
+	000000, /* 125 */
+	000000, /* 126 */
+	000000, /* 127 */
+	026061,	/* 128 - << unsigned long */
+	012253	/* 129 - <<= unsigned long */
 };
 
 /*
@@ -146,7 +165,7 @@ int opdope[] {
  * For = however the left operand can't be converted
  * and the specified conversion is applied to the rhs.
  */
-char cvtab[4][4] {
+char cvtab[4][4] = {
 /*		int	double		long		ptr */
 /* int */	0,	(FTI<<4)+ITF,	(LTI<<4)+ITL,	(ITP<<4)+ITP,	
 /* double */	ITF,	0,		LTF,		XX,
@@ -157,15 +176,15 @@ char cvtab[4][4] {
 /*
  * relate conversion numbers to operators
  */
-char	cvntab[] {
+char	cvntab[] = {
 	0, ITOF, ITOL, LTOF, ITOP, PTOI, FTOI, LTOI, FTOL, LTOP,
 };
 
 /*
  * character type table
  */
-char ctab[] {
-	EOFC,	INSERT,	UNKN,	UNKN,	UNKN,	UNKN,	UNKN,	UNKN,
+char ctab[] = {
+	EOFC,	UNKN,	UNKN,	UNKN,	UNKN,	UNKN,	UNKN,	UNKN,
 	UNKN,	SPACE,	NEWLN,	SPACE,	SPACE,	UNKN,	UNKN,	UNKN,
 	UNKN,	UNKN,	UNKN,	UNKN,	UNKN,	UNKN,	UNKN,	UNKN,
 	UNKN,	UNKN,	UNKN,	UNKN,	UNKN,	UNKN,	UNKN,	UNKN,

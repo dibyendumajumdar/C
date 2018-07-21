@@ -1,12 +1,17 @@
 /*
  * C second pass -- tables
  */
+
+#if	!defined(lint) && defined(DOSCCS)
+static	char	sccsid[] = "@(#)c13.c	2.1 (2.11BSD GTE) 10/4/94";
+#endif
+
 #include "c1.h"
 /*
  * Operator dope table-- see description in c0.
  */
-int opdope[] {
-	000000,	/* EOFC */
+int opdope[] = {
+	000000,	/* EOFC (0) */
 	000000,	/* ; */
 	000000,	/* { */
 	000000,	/* } */
@@ -16,7 +21,7 @@ int opdope[] {
 	002000,	/* ) */
 	014201,	/* : */
 	007001,	/* , */
-	000000,	/* field selection */
+	000000,	/* field selection (10) */
 	000000,	/* reverse field selection */
 	000001,	/* temporary field selection */
 	000001,	/* int->ptr */
@@ -24,29 +29,29 @@ int opdope[] {
 	000001,	/* long->ptr */
 	000001,	/* field assignment */
 	000001,	/* >> unsigned */
-	000001,	/* >> unsigned */
-	000000,	/* 19 */
-	000400,	/* name */
+	000001,	/* >>= unsigned */
+	000000,	/* keyword */
+	000400,	/* name (20) */
 	000400,	/* short constant */
 	000400,	/* string */
 	000400,	/* float */
 	000400,	/* double */
-	0000400,	/* long const */
+	000400,	/* long const */
 	000400,	/* long const <= 16 bits */
 	000400,	/* autoi, *r++ */
 	000400,	/* autod, *--r */
-	000000,	/* 29 */
-	034203,	/* ++pre */
-	034203,	/* --pre */
-	034203,	/* ++post */
-	034203,	/* --post */
+	000400,	/* () empty arglist */
+	034213,	/* ++pre (30) */
+	034213,	/* --pre */
+	034213,	/* ++post */
+	034213,	/* --post */
 	034220,	/* !un */
 	034202,	/* &un */
 	034220,	/* *un */
 	034200,	/* -un */
 	034220,	/* ~un */
 	036001,	/* . (structure reference) */
-	030101,	/* + */
+	030101,	/* + (40) */
 	030001,	/* - */
 	032101,	/* * */
 	032001,	/* / */
@@ -56,7 +61,7 @@ int opdope[] {
 	020161,	/* & */
 	016161,	/* | */
 	016161,	/* ^ */
-	036001,	/* -> */
+	036001,	/* -> (50) */
 	001000,	/* int -> double */
 	001000,	/* double -> int */
 	000001,	/* && */
@@ -66,7 +71,7 @@ int opdope[] {
 	001000,	/* long -> double */
 	001000,	/* integer -> long */
 	000000,	/* long -> integer */
-	022005,	/* == */
+	022005,	/* == (60) */
 	022005,	/* != */
 	024005,	/* <= */
 	024005,	/* < */
@@ -76,57 +81,70 @@ int opdope[] {
 	024005,	/* <=p */
 	024005,	/* >p */
 	024005,	/* >=p */
-	012213,	/* =+ */
-	012213,	/* =- */
-	012213,	/* =* */
-	012213,	/* =/ */
-	012213,	/* =% */
-	012253,	/* =>> */
-	012253,	/* =<< */
-	012253,	/* =& */
-	012253,	/* =| */
-	012253,	/* =^ */
-	012213,	/* = */
+	012213,	/* += (70) */
+	012213,	/* -= */
+	012213,	/* *= */
+	012213,	/* /= */
+	012213,	/* %= */
+	012253,	/* >>= */
+	012253,	/* <<= */
+	012253,	/* &= */
+	012253,	/* |= */
+	012253,	/* ^= */
+	012213,	/* = (80) */
 	030001, /* & for tests */
 	032001,	/*  * (long) */
 	032001,	/*  / (long) */
 	032001,	/* % (long) */
-	012253,	/* =& ~ */
-	012213,	/* =* (long) */
-	012213,	/* / (long) */
-	012213,	/* % (long) */
-	000000,	/* 89 */
-	014201,	/* ? */
+	012253,	/* &= ~ */
+	012213,	/* *= (long) */
+	012213,	/* /= (long) */
+	012213,	/* %= (long) */
+	000000,	/* (89) */
+	014201,	/* question '?' (90) */
 	026061,	/* long << */
-	012253,	/* long =<< */
+	012253,	/* long <<= */
 	000101,	/* max */
 	000101,	/* maxp */
 	000101,	/* min */
 	000101,	/* minp */
 	000001,	/* , */
-	000000,	/* 98 */
-	000000,	/* 99 */
-	036001,	/* call */
+	000000,	/* call1 */
+	000000,	/* call2 */
+	036001,	/* call (100) */
 	036000,	/* mcall */
 	000000,	/* goto */
 	000000,	/* jump cond */
 	000000,	/* branch cond */
 	000400,	/* set nregs */
-	000000, /* 106 */
-	000000,	/* 107 */
-	000000,	/* 108 */
+	000000, /* load */
+	030001,	/* ptoi1 */
+	000000,	/* (108) */
 	000000,	/* int->char */
-	000000,	/* force r0 */
-	000000,	/* 111 */
-	000000,	/* 112 */
-	000000,	/* 113 */
-	000000,	/* 114 */
+	000000,	/* force r0 (110) */
+	000000,	/* branch */
+	000000,	/* label */
+	000000,	/* nlabel */
+	000000,	/* rlabel */
 	000000,	/* structure assign */
 	000001,	/* struct assignment setup */
+	032001,	/* unsigned / */
+	032001,	/* unsigned % */
+	012213,	/* unsigned /= */
+	012213,	/* unsigned %= (120) */
+	032001, /* unsigned long * */
+	032001, /* unsigned long / */
+	032001, /* unsigned long % */
+	012213, /* unsigned long *= */
+	012213, /* unsigned long /= */
+	012213, /* unsigned long %= */
+	01000,  /* unsigned long -> float(double) */
+	026061, /* unsigned long >> */
+	012253, /* unsigned long >>= (129) */
 };
 
-char	*opntab[] {
-	0,
+char	*opntab[] = {
+	0,			/* 0 */
 	0,
 	0,
 	0,
@@ -136,7 +154,7 @@ char	*opntab[] {
 	0,
 	":",
 	",",
-	"field select",
+	"field select",		/* 10 */
 	0,
 	0,
 	"int->ptr",
@@ -144,9 +162,9 @@ char	*opntab[] {
 	"long->ptr",
 	"field assign",
 	">>",
-	">>",
-	0,
-	"name",
+	">>=",
+	"keyword",
+	"name",			/* 20 */
 	"short constant",
 	"string",
 	"float",
@@ -155,8 +173,8 @@ char	*opntab[] {
 	"long constant",
 	"*r++",
 	"*--r",
-	0,
-	"++pre",
+	"()",
+	"++pre",		/* 30 */
 	"--pre",
 	"++post",
 	"--post",
@@ -166,7 +184,7 @@ char	*opntab[] {
 	"-",
 	"~",
 	".",
-	"+",
+	"+",			/* 40 */
 	"-",
 	"*",
 	"/",
@@ -176,7 +194,7 @@ char	*opntab[] {
 	"&",
 	"|",
 	"^",
-	"->",
+	"->",			/* 50 */
 	"int->double",
 	"double->int",
 	"&&",
@@ -186,7 +204,7 @@ char	*opntab[] {
 	"long->double",
 	"integer->long",
 	"long->integer",
-	"==",
+	"==",			/* 60 */
 	"!=",
 	"<=",
 	"<",
@@ -196,7 +214,7 @@ char	*opntab[] {
 	"<=p",
 	">p",
 	">=p",
-	"+=",
+	"+=",			/* 70 */
 	"-=",
 	"*=",
 	"/=",
@@ -206,7 +224,7 @@ char	*opntab[] {
 	"&=",
 	"|=",
 	"^=",
-	"=",
+	"=",			/* 80 */
 	"& for tests",
 	"*",
 	"/",
@@ -216,87 +234,113 @@ char	*opntab[] {
 	"/=",
 	"%=",
 	0,
-	"?",
+	"?",			/* 90 */
 	"<<",
 	"<<=",
 	"\\/",
 	"\\/",
 	"/\\",
 	"/\\",
-	0,
-	"call",
-	"call",
-	"call",
-	0,
+	",",
+	"call1",
+	"call2",
+	"call",			/* 100 */
+	"mcall",
 	"goto",
 	"jump cond",
 	"branch cond",
 	"set nregs",
 	"load value",
-	0,
+	"ptr->integer",
 	0,
 	"int->char",
-	"force register",
-	"",
-	"",
-	"",
-	"",
+	"force register",	/* 110 */
+	"branch",
+	"label",
+	"nlabel",
+	"rlabel",
 	"=structure",
 	"= (struct setup)",
+	"/",
+	"%",
+	"/=",
+	"%=",			/* 120 */
+	"*",			/* unsigned long */
+	"/",			/* unsigned long */
+	"%",			/* unsigned long */
+	"*=",			/* unsigned long */
+	"/=",			/* unsigned long */
+	"%=",			/* unsigned long */
+	"u_long->double", 	/* unsigned long */
+	">>",			/* unsigned long */
+	">>=",			/* 129 unsigned long */
 };
 
 /*
  * Strings for instruction tables.
  */
-char	mov[]	"mov";
-char	clr[]	"clr";
-char	cmp[]	"cmp";
-char	tst[]	"tst";
-char	add[]	"add";
-char	sub[]	"sub";
-char	inc[]	"inc";
-char	dec[]	"dec";
-char	mul[]	"mul";
-char	div[]	"div";
-char	asr[]	"asr";
-char	ash[]	"ash";
-char	asl[]	"asl";
-char	bic[]	"bic";
-char	bic1[]	"bic $1,";
-char	bit[]	"bit";
-char	bit1[]	"bit $1,";
-char	bis[]	"bis";
-char	bis1[]	"bis $1,";
-char	xor[]	"xor";
-char	neg[]	"neg";
-char	com[]	"com";
-char	stdol[]	"*$";
-char	ashc[]	"ashc";
-char	slmul[]	"lmul";
-char	sldiv[]	"ldiv";
-char	slrem[]	"lrem";
-char	almul[]	"almul";
-char	aldiv[]	"aldiv";
-char	alrem[]	"alrem";
-char	jeq[]	"jeq";
-char	jne[]	"jne";
-char	jle[]	"jle";
-char	jgt[]	"jgt";
-char	jlt[]	"jlt";
-char	jge[]	"jge";
-char	jlos[]	"jlos";
-char	jhi[]	"jhi";
-char	jlo[]	"jlo";
-char	jhis[]	"jhis";
-char	nop[]	"/nop";
-char	jbr[]	"jbr";
+char	mov[]	= "mov";
+char	clr[]	= "clr";
+char	cmp[]	= "cmp";
+char	tst[]	= "tst";
+char	add[]	= "add";
+char	sub[]	= "sub";
+char	inc[]	= "inc";
+char	dec[]	= "dec";
+char	mul[]	= "mul";
+char	div[]	= "div";
+char	asr[]	= "asr";
+char	ash[]	= "ash";
+char	asl[]	= "asl";
+char	bic[]	= "bic";
+char	bic1[]	= "bic $1,";
+char	bit[]	= "bit";
+char	bit1[]	= "bit $1,";
+char	bis[]	= "bis";
+char	bis1[]	= "bis $1,";
+char	xor[]	= "xor";
+char	neg[]	= "neg";
+char	com[]	= "com";
+char	stdol[]	= "*$";
+char	ashc[]	= "ashc";
+char	slmul[]	= "lmul";
+char	sldiv[]	= "ldiv";
+char	slrem[]	= "lrem";
+char	uldiv[] = "uldiv";
+char	ulrem[] = "ulrem";
+char	ualdiv[] = "ualdiv";
+char	ualrem[] = "ualrem";
+char	ultof[] = "ultof";
+char	ulsh[] = "ulsh";
+char	ualsh[] = "ualsh";
+char	almul[]	= "almul";
+char	aldiv[]	= "aldiv";
+char	alrem[]	= "alrem";
+char	udiv[]	= "udiv";
+char	urem[]	= "urem";
+char	jeq[]	= "jeq";
+char	jne[]	= "jne";
+char	jle[]	= "jle";
+char	jgt[]	= "jgt";
+char	jlt[]	= "jlt";
+char	jge[]	= "jge";
+char	jlos[]	= "jlos";
+char	jhi[]	= "jhi";
+char	jlo[]	= "jlo";
+char	jhis[]	= "jhis";
+char	nop[]	= "/nop";
+char	jbr[]	= "jbr";
+char	jpl[] = "jpl";
+char	jmi[] = "jmi";
+char	jmijne[] = "jmi\tL%d\njne";
+char	jmijeq[] = "jmi\tL%d\njeq";
 
 /*
  * Instruction tables, accessed by
  * I (first operand) or I' (second) macros.
  */
 
-struct instab instab[] {
+struct instab instab[] = {
 	LOAD,	mov,	tst,
 	ASSIGN,	mov,	clr,
 	EQUAL,	cmp,	tst,
@@ -350,6 +394,19 @@ struct instab instab[] {
 	LASMOD,	alrem,	alrem,
 	ULSH,	ashc,	ashc,
 	ASULSH,	ashc,	ashc,
+	UDIV,	udiv,	udiv,
+	UMOD,	urem,	urem,
+	ASUDIV,	udiv,	udiv,
+	ASUMOD,	urem,	urem,
+	ULTIMES,slmul,	slmul,		/* symmetry */
+	ULDIV,	uldiv,	uldiv,
+	ULMOD,	ulrem,	ulrem,
+	ULASTIMES,almul,almul,		/* symmetry */
+	ULASDIV,ualdiv,	ualdiv,
+	ULASMOD,ualrem,	ualrem,
+	ULTOF,	ultof,	ultof,
+	ULLSHIFT, ulsh, ulsh,
+	UASLSHL, ualsh, ualsh,
 	0,	0,	0};
 
 /*
@@ -361,7 +418,7 @@ struct instab instab[] {
  * instruction is used; it clears the c-bit
  * the c-bit so ptr tests are funny.
  */
-struct instab branchtab[] {
+struct instab branchtab[] = {
 	EQUAL,	jeq,	jne,
 	NEQUAL,	jne,	jeq,
 	LESSEQ,	jle,	jgt,
@@ -374,10 +431,10 @@ struct instab branchtab[] {
 	GREATP,	jhi,	jlos,
 	200+EQUAL,	jeq,	jne,
 	200+NEQUAL,	jne,	jeq,
-	200+LESSEQ,	jle,	jgt,
-	200+LESS,	jlt,	jge,
-	200+GREATEQ,	jge,	jlt,
-	200+GREAT,	jgt,	jle,
+	200+LESSEQ,	jmijeq,	jmijne,
+	200+LESS,	jmi,	jpl,
+	200+GREATEQ,	jpl,	jmi,
+	200+GREAT,	jmijne,	jmijeq,
 	200+LESSEQP,	jeq,	jne,
 	200+LESSP,	nop,	jbr,
 	200+GREATQP,	jbr,	nop,

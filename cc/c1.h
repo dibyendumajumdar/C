@@ -3,10 +3,12 @@
  */
 
 #include <stdio.h>
+#include <setjmp.h>
 
 #define	LTYPE	long	/* change to int for no long consts */
-#define	NCPS	8
 #define	NULL	0
+#define	TNULL	(union tree *)NULL
+#define	UNS(x)	((unsigned short)(x))
 
 /*
  *  Tree node for unary and binary
@@ -15,7 +17,8 @@ struct	tnode {
 	int	op;
 	int	type;
 	int	degree;
-	struct	tnode *tr1, *tr2;
+	union	tree *tr1;
+	union	tree *tr2;
 };
 
 /*
@@ -39,9 +42,12 @@ struct	xtname {
 	char	class;
 	char	regno;
 	int	offset;
-	char	name[NCPS];
+	char	*name;
 };
 
+/*
+ * short constants
+ */
 struct	tconst {
 	int	op;
 	int	type;
@@ -57,6 +63,9 @@ struct	lconst {
 	LTYPE	lvalue;
 };
 
+/*
+ * Floating constants
+ */
 struct	ftconst {
 	int	op;
 	int	type;
@@ -65,14 +74,25 @@ struct	ftconst {
 };
 
 /*
- * Node used for field assignemnts
+ * Node used for field assignments
  */
 struct	fasgn {
 	int	op;
 	int	type;
 	int	degree;
-	struct	tnode *tr1, *tr2;
+	union	tree *tr1;
+	union	tree *tr2;
 	int	mask;
+};
+
+union	tree {
+	struct	tnode t;
+	struct tname n;
+	struct	xtname x;
+	struct	tconst c;
+	struct	lconst l;
+	struct	ftconst f;
+	struct	fasgn F;
 };
 
 struct	optab {
@@ -103,9 +123,8 @@ char	maprel[];
 char	notrel[];
 int	nreg;
 int	isn;
-int	namsiz;
 int	line;
-int	nerror;
+int	nerror;			/* number of hard errors */
 struct	table	cctab[];
 struct	table	efftab[];
 struct	table	regtab[];
@@ -121,9 +140,31 @@ struct	tname	sfuncr;
 char	*funcbase;
 char	*curbase;
 char	*coremax;
-struct tconst czero, cone;
-struct	ftconst	fczero;
+struct	tconst czero, cone;
 long	totspace;
+int	regpanic;		/* set when SU register alg. fails */
+int	panicposs;		/* set when there might be need for regpanic */
+jmp_buf	jmpbuf;
+long	ftell();
+char	*sbrk();
+struct	optab *match();
+union	tree *optim();
+union	tree *unoptim();
+union	tree *pow2();
+union	tree *tnode();
+union	tree *sdelay();
+union	tree *ncopy();
+union	tree *getblk();
+union	tree *strfunc();
+union	tree *isconstant();
+union	tree *tconst();
+union	tree *hardlongs();
+union	tree *lconst();
+union	tree *acommute();
+union	tree *lvfield();
+union	tree *paint();
+long	ftell();
+
 /*
  * Some special stuff for long comparisons
  */
@@ -160,6 +201,7 @@ int	xlab1, xlab2, xop, xzero;
 
 #define	AUTOI	27
 #define	AUTOD	28
+#define	NULLOP	218
 #define	INCBEF	30
 #define	DECBEF	31
 #define	INCAFT	32
@@ -227,9 +269,9 @@ int	xlab1, xlab2, xop, xzero;
 #define	LASMOD	88
 
 #define	QUEST	90
-#define	MAX	93
+/* #define	MAX	93	/* not used; wanted macros in param.h */
 #define	MAXP	94
-#define	MIN	95
+/* #define	MIN	95	/* not used; wanted macros in param.h */
 #define	MINP	96
 #define	LLSHIFT	91
 #define	ASLSHL	92
@@ -243,6 +285,7 @@ int	xlab1, xlab2, xop, xzero;
 #define	INIT	104
 #define	SETREG	105
 #define	LOAD	106
+#define	PTOI1	107
 #define	ITOC	109
 #define	RFORCE	110
 
@@ -255,6 +298,20 @@ int	xlab1, xlab2, xop, xzero;
 #define	RLABEL	114
 #define	STRASG	115
 #define	STRSET	116
+#define	UDIV	117
+#define	UMOD	118
+#define	ASUDIV	119
+#define	ASUMOD	120
+#define	ULTIMES	121	/* present for symmetry */
+#define	ULDIV	122
+#define	ULMOD	123
+#define	ULASTIMES 124	/* present for symmetry */
+#define	ULASDIV	125
+#define	ULASMOD	126
+#define	ULTOF	127
+#define	ULLSHIFT 128	/* << for unsigned long */
+#define	UASLSHL	129	/* <<= for unsigned long */
+
 #define	BDATA	200
 #define	PROG	202
 #define	DATA	203
@@ -271,11 +328,11 @@ int	xlab1, xlab2, xop, xzero;
 #define	SNAME	215
 #define	RNAME	216
 #define	ANAME	217
-#define	NULLOP	218
 #define	SETSTK	219
 #define	SINIT	220
 #define	GLOBAL	221
 #define	C3BRANCH	222
+#define	ASSEM	223
 
 /*
  *	types
@@ -288,13 +345,16 @@ int	xlab1, xlab2, xop, xzero;
 #define	RSTRUCT	5
 #define	LONG	6
 #define	UNSIGN	7
+#define	UNCHAR	8
+#define	UNLONG	9
+#define	VOID	10
 
 #define	TYLEN	2
-#define	TYPE	07
-#define	XTYPE	(03<<3)
-#define	PTR	010
-#define	FUNC	020
-#define	ARRAY	030
+#define	TYPE	017
+#define	XTYPE	(03<<4)
+#define	PTR	020
+#define	FUNC	040
+#define	ARRAY	060
 
 /*
 	storage	classes
