@@ -7,7 +7,7 @@
 /*
  * Process a single external definition
  */
-extdef()
+void extdef(void)
 {
 	register o;
 	int sclass, scflag;
@@ -92,7 +92,7 @@ syntax:
 /*
  * Process a function definition.
  */
-cfunc()
+void cfunc(void)
 {
 	register char *cb;
 	register sloc;
@@ -128,8 +128,7 @@ cfunc()
 /*
  * Process the initializers for an external definition.
  */
-cinit(anp, flex, sclass)
-struct nmlist *anp;
+int cinit(struct nmlist *anp, int flex, int sclass)
 {
 	struct nmlist np;
 	register nel, ninit;
@@ -233,8 +232,7 @@ struct nmlist *anp;
 /*
  * Initialize a structure
  */
-strinit(np, sclass)
-struct nmlist *np;
+void strinit(struct nmlist *np, int sclass)
 {
 	static struct nmlist junk;
 	register struct nmlist **mlp;
@@ -282,8 +280,7 @@ struct nmlist *np;
 /*
  * Mark already initialized
  */
-setinit(np)
-register struct nmlist *np;
+void setinit(struct nmlist *np)
 {
 
 	if (np->hflag&FINIT)
@@ -294,7 +291,7 @@ register struct nmlist *np;
 /*
  * Process one statement in a function.
  */
-statement()
+void statement(void)
 {
 	register o, o1;
 	int sauto, sreg;
@@ -561,7 +558,7 @@ syntax:
 /*
  * Process a for statement.
  */
-forstmt()
+int forstmt(void)
 {
 	register int o;
 	register union tree *st;
@@ -620,7 +617,7 @@ forstmt()
  * as after "if".
  */
 union tree *
-pexpr(eflag)
+pexpr(int eflag)
 {
 	register o;
 	register union tree *t;
@@ -643,7 +640,7 @@ syntax:
  * The switch statement, which involves collecting the
  * constants and labels for the cases.
  */
-pswitch()
+void pswitch(void)
 {
 	register struct swtab *cswp, *sswp;
 	int dl, swlab;
@@ -680,7 +677,8 @@ pswitch()
  */
 struct	nmlist	hreg	= { REG, 0, 0, NULL, NULL, 0 };
 struct	tnode	areg	= { NAME, 0, NULL, NULL, (union tree *)&hreg};
-funchead()
+
+void funchead(void)
 {
 	register pl;
 	register struct nmlist *cs;
@@ -724,7 +722,7 @@ funchead()
 	outcode("BN", SETREG, regvar);
 }
 
-blockhead()
+void blockhead(void)
 {
 	register r;
 
@@ -740,7 +738,7 @@ blockhead()
  * symbols;
  * Also complain about undefined labels.
  */
-blkend()
+void blkend(void)
 {
 	register struct nmlist *cs, **lcs;
 	register i;
@@ -764,8 +762,7 @@ blkend()
 	}
 }
 
-nameconflict(ocs, cs)
-register struct nmlist *ocs, *cs;
+void nameconflict(struct nmlist *ocs, struct nmlist *cs)
 {
 
 	for (; ocs!=NULL; ocs = ocs->nextnm) 
@@ -779,8 +776,7 @@ register struct nmlist *ocs, *cs;
  * benefit of the debugger.  None of these are used
  * by the assembler except to save them.
  */
-prste(cs)
-struct nmlist *cs;
+void prste(struct nmlist *cs)
 {
 	register nkind;
 
@@ -808,9 +804,9 @@ struct nmlist *cs;
  * In case of error, skip to the next
  * statement delimiter.
  */
-errflush(ao)
+void errflush(int ao)
 {
-	register o;
+	register int o;
 
 	o = ao;
 	while(o>RBRACE) {	/* ; { } */

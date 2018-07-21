@@ -4,6 +4,12 @@
 
 #include "c0.h"
 
+#include <stdarg.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
 /*
  * Called from tree, this routine takes the top 1, 2, or 3
  * operands on the expression stack, makes a new node with
@@ -11,7 +17,7 @@
  * Essentially all the work is in inserting
  * appropriate conversions.
  */
-build(op)
+void build(int op)
 {
 	register int t1;
 	int t2, t;
@@ -372,8 +378,7 @@ build(op)
 }
 
 union tree *
-structident(p1, p2)
-register union tree *p1, *p2;
+structident(union tree *p1, union tree *p2)
 {
 	register struct nmlist *np;
 	int vartypes = 0, namesame = 1;
@@ -411,8 +416,7 @@ register union tree *p1, *p2;
  * Generate the appropriate conversion operator.
  */
 union tree *
-convert(p, t, cvn, len)
-union tree *p;
+convert(union tree *p, int t, int cvn, int len)
 {
 	register int op;
 
@@ -434,9 +438,7 @@ union tree *p;
  * type at.
  * Used with structure references.
  */
-setype(p, t, newp)
-register union tree *p, *newp;
-register t;
+void setype(union tree *p, int t, union tree *newp)
 {
 	for (;; p = p->t.tr1) {
 		p->t.subsp = newp->t.subsp;
@@ -456,8 +458,7 @@ register t;
  * a pointer to that function.
  */
 union tree *
-chkfun(p)
-register union tree *p;
+chkfun(union tree *p)
 {
 	register int t;
 
@@ -471,8 +472,7 @@ register union tree *p;
  * a pointer to the base of the array.
  */
 union tree *
-disarray(p)
-register union tree *p;
+disarray(union tree *p)
 {
 	register int t;
 
@@ -496,8 +496,7 @@ register union tree *p;
  * okt might be nonexistent or 'long'
  * (e.g. for <<).
  */
-chkw(p, okt)
-union tree *p;
+void chkw(union tree *p, int okt)
 {
 	register int t = p->t.type;
 
@@ -512,7 +511,7 @@ union tree *p;
  *'linearize' a type for looking up in the
  * conversion table
  */
-lintyp(t)
+int lintyp(int t)
 {
 	switch(t) {
 
@@ -541,28 +540,36 @@ lintyp(t)
 
 extern int Wflag = 0;	/* Non-zero means do not print warnings */
 
+
+
 /* VARARGS1 */
-werror(s, p1, p2, p3, p4, p5, p6)
-char *s;
+void werror(const char *s, ...)
 {
+	va_list args;
+
 	if (Wflag)
 		return;
 	if (filename[0])
 		fprintf(stderr, "%s:", filename);
 	fprintf(stderr, "%d: warning: ", line);
-	fprintf(stderr, s, p1, p2, p3, p4, p5, p6);
+	va_start(args, s);
+	vfprintf(stderr, s, args);
+	va_end(args);
 	fprintf(stderr, "\n");
 }
 
 /* VARARGS1 */
-error(s, p1, p2, p3, p4, p5, p6)
-char *s;
+void error(const char *s, ...)
 {
+	va_list args;
+
 	nerror++;
 	if (filename[0])
 		fprintf(stderr, "%s:", filename);
 	fprintf(stderr, "%d: ", line);
-	fprintf(stderr, s, p1, p2, p3, p4, p5, p6);
+	va_start(args, s);
+	vfprintf(stderr, s, args);
+	va_end(args);
 	fprintf(stderr, "\n");
 }
 
@@ -572,10 +579,7 @@ char *s;
  * and the operands.
  */
 union tree *
-block(op, t, subs, str, p1,p2)
-int *subs;
-union str *str;
-union tree *p1, *p2;
+block(int op, int t, int *subs, union str *str, union tree *p1, union tree *p2)
 {
 	register union tree *p;
 
@@ -593,8 +597,7 @@ union tree *p1, *p2;
 }
 
 union tree *
-nblock(ds)
-register struct nmlist *ds;
+nblock(struct nmlist *ds)
 {
 	return(block(NAME, ds->htype, ds->hsubsp, ds->hstrp, (union tree *)ds, TNULL));
 }
@@ -603,7 +606,7 @@ register struct nmlist *ds;
  * Generate a block for a constant
  */
 union tree *
-cblock(v)
+cblock(int v)
 {
 	register union tree *p;
 
@@ -620,8 +623,7 @@ cblock(v)
  * A block for a float constant
  */
 union tree *
-fblock(t, string)
-char *string;
+fblock(int t, char *string)
 {
 	register union tree *p;
 
@@ -639,7 +641,7 @@ char *string;
  * expression tree.
  */
 char *
-Tblock(n)
+Tblock(int n)
 {
 	register char *p;
 
@@ -659,7 +661,7 @@ Tblock(n)
 }
 
 char *
-starttree()
+starttree(void)
 {
 	register char *st;
 
@@ -669,8 +671,7 @@ starttree()
 	return(st);
 }
 
-endtree(tp)
-char *tp;
+void endtree(char *tp)
 {
 	treebase = tp;
 	if (tp==NULL)
@@ -681,7 +682,7 @@ char *tp;
  * Assign a block for use in a declaration
  */
 char *
-Dblock(n)
+Dblock(int n)
 {
 	register char *p;
 
@@ -704,8 +705,7 @@ Dblock(n)
 /*
  * Check that a tree can be used as an lvalue.
  */
-chklval(p)
-register union tree *p;
+void chklval(union tree *p)
 {
 	if (p->t.op==FSEL)
 		p = p->t.tr1;
@@ -719,9 +719,7 @@ register union tree *p;
  * but this is used to allow constant expressions
  * to be used in switches and array bounds.
  */
-fold(op, p1, p2)
-register union tree *p1;
-union tree *p2;
+int fold(int op, union tree *p1, union tree *p2)
 {
 	register int v1, v2;
 	int unsignf;
@@ -885,7 +883,7 @@ union tree *p2;
  * Compile an expression expected to have constant value,
  * for example an array bound or a case value.
  */
-conexp()
+int conexp(void)
 {
 	register union tree *t;
 
@@ -900,8 +898,7 @@ conexp()
 /*
  * Handle peculiar assignment ops that need a temporary.
  */
-assignop(op, p1, p2)
-register union tree *p1, *p2;
+void assignop(int op, union tree *p1, union tree *p2)
 {
 	register struct nmlist *np;
 
@@ -934,7 +931,7 @@ register union tree *p1, *p2;
  * use in certain assignment ops
  */
 struct nmlist *
-gentemp(type)
+gentemp(int type)
 {
 	register struct nmlist *tp;
 

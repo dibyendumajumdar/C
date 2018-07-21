@@ -10,6 +10,9 @@
 
 #include "c0.h"
 
+#include <string.h>
+#include <stdlib.h>
+
 int	isn	= 1;
 int	peeksym	= -1;
 int	line	= 1;
@@ -56,6 +59,11 @@ union	tree *cmst[CMSIZ];
 union	tree **cp = cmst;
 int	Wflag;			/* print warning messages */
 
+static int findkw(void);
+static int subseq(int c, int a, int b);
+static int getnum(void);
+static int getcc(void);
+
 main(argc, argv)
 int	argc;
 char	*argv[];
@@ -74,16 +82,17 @@ char	*argv[];
 		error("Arg count");
 		exit(1);
 	}
-	if (freopen(argv[1], "r", stdin)==NULL) {
+	infp = stdin;
+	if ((infp = fopen(argv[1], "r"))==NULL) {
 		error("Can't find %s", argv[1]);
 		exit(1);
 	}
-	setbuf(stdin,buf1);	/* stdio sbrk problems */
-	if (freopen(argv[2], "w", stdout)==NULL || (sbufp=fopen(argv[3],"w"))==NULL) {
+	setbuf(infp,buf1);	/* stdio sbrk problems */
+	if ((outfp = fopen(argv[2], "w"))==NULL || (sbufp=fopen(argv[3],"w"))==NULL) {
 		error("Can't create temp");
 		exit(1);
 	}
-	setbuf(stdout,buf2);	/* stdio sbrk problems */
+	setbuf(outfp,buf2);	/* stdio sbrk problems */
 	setbuf(sbufp, sbuf);
 	/*
 	 * Overlays: allow an extra word on the stack for
@@ -130,7 +139,7 @@ char	*argv[];
  * first.
  * Return is a ptr to the symbol table entry.
  */
-lookup()
+int lookup(void)
 {
 	unsigned ihash;
 	register struct nmlist *rp;
@@ -170,7 +179,7 @@ lookup()
 /*
  * Search the keyword table.
  */
-findkw()
+int findkw(void)
 {
 	register struct kwtab *kp;
 
@@ -191,7 +200,7 @@ findkw()
  * mosflg means that the next symbol, if an identifier,
  * is a member of structure or a structure tag or an enum tag
  */
-symbol()
+int symbol(void)
 {
 	register c;
 	register char *sp;
@@ -344,7 +353,7 @@ loop:
 /*
  * Read a number.  Return kind.
  */
-getnum()
+int getnum(void)
 {
 	register char *np;
 	register c, base;
@@ -433,7 +442,7 @@ getnum()
  * If the next input character is c, return b and advance.
  * Otherwise push back the character and return a.
  */
-subseq(c,a,b)
+int subseq(int c,int a,int b)
 {
 	if (spnextchar() != c)
 		return(a);
@@ -446,8 +455,7 @@ subseq(c,a,b)
  * or in the string temp file labelled by
  * lab.
  */
-putstr(lab, max)
-register max;
+void putstr(int lab, int max)
 {
 	register int c;
 
@@ -474,7 +482,7 @@ register max;
 	strflg = 0;
 }
 
-cntstr()
+void cntstr(void)
 {
 	register int c;
 
@@ -489,7 +497,7 @@ cntstr()
  * The routine is sensitive to the layout of
  * characters in a word.
  */
-getcc()
+int getcc(void)
 {
 	register int c, cc;
 	register char *ccp;
@@ -515,7 +523,7 @@ getcc()
  * detecting the end of the string.
  * It implements the escape sequences.
  */
-mapch(ac)
+int mapch(int ac)
 {
 	register int a, c, n;
 	static mpeek;
@@ -586,7 +594,7 @@ loop:
  * in initializer (and some other) expressions.
  */
 union tree *
-tree(eflag)
+tree(int eflag)
 {
 	int *op, opst[SSIZE], *pp, prst[SSIZE];
 	register int andflg, o;
@@ -868,7 +876,7 @@ syntax:
 }
 
 union tree *
-xprtype()
+xprtype(void)
 {
 	struct nmlist typer, absname;
 	int sc;
@@ -889,7 +897,7 @@ xprtype()
 }
 
 char *
-copnum(len)
+copnum(int len)
 {
 	register char *s1;
 

@@ -8,8 +8,7 @@
  * Reduce the degree-of-reference by one.
  * e.g. turn "ptr-to-int" into "int".
  */
-decref(t)
-register int t;
+int decref(int t)
 {
 	if ((t & ~TYPE) == 0) {
 		error("Illegal indirection");
@@ -22,8 +21,7 @@ register int t;
  * Increase the degree of reference by
  * one; e.g. turn "int" to "ptr-to-int".
  */
-incref(t)
-register int t;
+int incref(int t)
 {
 	return(((t&~TYPE)<<TYLEN) | (t&TYPE) | PTR);
 }
@@ -32,8 +30,7 @@ register int t;
  * Make a tree that causes a branch to lbl
  * if the tree's value is non-zero together with the cond.
  */
-cbranch(t, lbl, cond)
-union tree *t;
+void cbranch(union tree *t, int lbl, int cond)
 {
 	treeout(t, 0);
 	outcode("BNNN", CBRANCH, lbl, cond, line);
@@ -42,8 +39,7 @@ union tree *t;
 /*
  * Write out a tree.
  */
-rcexpr(tp)
-register union tree *tp;
+void rcexpr(union tree *tp)
 {
 	/*
 	 * Special optimization
@@ -61,8 +57,7 @@ register union tree *tp;
 	outcode("BN", EXPR, line);
 }
 
-treeout(tp, isstruct)
-register union tree *tp;
+void treeout(union tree *tp, int isstruct)
 {
 	register struct nmlist *hp;
 	register nextisstruct;
@@ -138,7 +133,7 @@ register union tree *tp;
 /*
  * Generate a branch
  */
-branch(lab)
+void branch(int lab)
 {
 	outcode("BN", BRANCH, lab);
 }
@@ -146,7 +141,7 @@ branch(lab)
 /*
  * Generate a label
  */
-label(l)
+void label(int l)
 {
 	outcode("BN", LABEL, l);
 }
@@ -156,8 +151,7 @@ label(l)
  * is some kind of pointer; return the size of the object
  * to which the pointer points.
  */
-plength(p)
-register union tree *p;
+int plength(union tree *p)
 {
 	register t, l;
 
@@ -173,8 +167,7 @@ register union tree *p;
  * return the number of bytes in the object
  * whose tree node is acs.
  */
-length(cs)
-union tree *cs;
+int length(union tree *cs)
 {
 	register t, elsz;
 	long n;
@@ -237,8 +230,7 @@ union tree *cs;
 /*
  * The number of bytes in an object, rounded up to a word.
  */
-rlength(cs)
-union tree *cs;
+int rlength(union tree *cs)
 {
 	return((length(cs)+ALIGN) & ~ALIGN);
 }
@@ -247,7 +239,7 @@ union tree *cs;
  * After an "if (...) goto", look to see if the transfer
  * is to a simple label.
  */
-simplegoto()
+int simplegoto(void)
 {
 	register struct nmlist *csp;
 
@@ -273,7 +265,7 @@ simplegoto()
 /*
  * Return the next non-white-space character
  */
-nextchar()
+int nextchar(void)
 {
 	while (spnextchar()==' ')
 		peekc = 0;
@@ -284,12 +276,12 @@ nextchar()
  * Return the next character, translating all white space
  * to blank and handling line-ends.
  */
-spnextchar()
+int spnextchar(void)
 {
-	register c;
+	register int c;
 
 	if ((c = peekc)==0)
-		c = getchar();
+		c = getc(infp);
 	if (c=='\t' || c=='\014')	/* FF */
 		c = ' ';
 	else if (c=='\n') {
@@ -303,7 +295,7 @@ spnextchar()
 /*
  * is a break or continue legal?
  */
-chconbrk(l)
+void chconbrk(int l)
 {
 	if (l==0)
 		error("Break/continue error");
@@ -312,7 +304,7 @@ chconbrk(l)
 /*
  * The goto statement.
  */
-dogoto()
+void dogoto(void)
 {
 	register union tree *np;
 	register char *st;
@@ -329,7 +321,7 @@ dogoto()
  * The return statement, which has to convert
  * the returned object to the function's type.
  */
-doret()
+void doret(void)
 {
 	if (nextchar() != ';') {
 		register char *st;
@@ -358,18 +350,19 @@ doret()
  *   0: number 0
  */
 /* VARARGS1 */
-outcode(s, a)
-char *s;
+void outcode(char *s, ...)
 {
-	register *ap;
+	va_list args;
+
 	register FILE *bufp;
 	register char *np;
 	int n;
 
+#if 0
 	bufp = stdout;
 	if (strflg)
 		bufp = sbufp;
-	ap = &a;
+	va_start(args, s);
 	for (;;) switch(*s++) {
 	case 'B':
 		fputc(*ap++, bufp);
@@ -418,11 +411,10 @@ char *s;
 	default:
 		error("Botch in outcode");
 	}
+#endif
 }
 
-unsigned int
-hash(sp)
-register char *sp;
+unsigned int hash(char *sp)
 {
 	register unsigned int h;
 

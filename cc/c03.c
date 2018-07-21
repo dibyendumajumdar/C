@@ -7,10 +7,12 @@
 
 #include "c0.h"
 
+#include <string.h>
+
 /*
  * Process a sequence of declaration statements
  */
-declist(sclass)
+int declist(int sclass)
 {
 	register sc, offset;
 	struct nmlist typer;
@@ -29,9 +31,7 @@ declist(sclass)
  * Store back the storage class, and fill in the type
  * entry, which looks like a hash table entry.
  */
-getkeywords(scptr, tptr)
-int *scptr;
-struct nmlist *tptr;
+int getkeywords(int *scptr, struct nmlist *tptr)
 {
 	register skw, tkw, longf;
 	int o, isadecl, ismos, unsignf;
@@ -145,7 +145,7 @@ struct nmlist *tptr;
  * of getkeywords.
  */
 union str *
-strdec(mosf, kind)
+strdec(int mosf, int kind)
 {
 	register elsize, o;
 	register struct nmlist *ssym;
@@ -240,8 +240,7 @@ strdec(mosf, kind)
 /*
  * Process a comma-separated list of declarators
  */
-declare(askw, tptr, offset)
-struct nmlist *tptr;
+int declare(int askw, struct nmlist *tptr, int offset)
 {
 	register unsigned o;
 	register int skw, isunion;
@@ -298,8 +297,7 @@ struct nmlist *tptr;
 /*
  * Process a single declarator
  */
-decl1(askw, atptr, offset, absname)
-struct nmlist *atptr, *absname;
+int decl1(int askw, struct nmlist *atptr, int offset, struct nmlist *absname)
 {
 	int t1, a, elsize;
 	register int skw;
@@ -535,8 +533,7 @@ syntax:
  * after redeclaration in an inner block.
  */
 struct nmlist *
-pushdecl(sp)
-register struct nmlist *sp;
+pushdecl(struct nmlist *sp)
 {
 	register struct nmlist *nsp, **hsp;
 
@@ -559,9 +556,7 @@ register struct nmlist *sp;
 /*
  * Read a declarator and get the implied type
  */
-getype(dimp, absname)
-register struct tdim *dimp;
-struct nmlist *absname;
+int getype(struct tdim *dimp, struct nmlist *absname)
 {
 	static struct nmlist argtype;
 	int type;
@@ -656,7 +651,7 @@ syntax:
 /*
  * More bits required for type than allowed.
  */
-typov()
+void typov(void)
 {
 	error("Type is too complicated");
 }
@@ -665,7 +660,7 @@ typov()
  * Enforce alignment restrictions in structures,
  * including bit-field considerations.
  */
-align(type, offset, aflen)
+int align(int type, int offset, int aflen)
 {
 	register a, t, flen;
 	char *ftl;
@@ -709,7 +704,7 @@ align(type, offset, aflen)
 /*
  * Complain about syntax error in declaration
  */
-decsyn(o)
+void decsyn(int o)
 {
 	error("Declaration syntax");
 	errflush(o);
@@ -718,7 +713,7 @@ decsyn(o)
 /*
  * Complain about a redeclaration
  */
-redec()
+void redec(void)
 {
 	error("%s redeclared", defsym->name);
 }
@@ -727,8 +722,7 @@ redec()
  * Determine if a variable is suitable for storage in
  * a register; if so return the register number
  */
-goodreg(hp)
-struct nmlist *hp;
+int goodreg(struct nmlist *hp)
 {
 	int type;
 
