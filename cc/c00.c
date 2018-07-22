@@ -64,9 +64,7 @@ static int subseq(int c, int a, int b);
 static int getnum(void);
 static int getcc(void);
 
-main(argc, argv)
-int	argc;
-char	*argv[];
+void main(int argc, char *argv[])
 {
 	register unsigned i;
 	register struct kwtab *ip;
@@ -123,7 +121,8 @@ char	*argv[];
 		i = hash(ip->kwname);
 		kwhash[i/LNBPW] |= 1 << (i%LNBPW);
 	}
-	coremax = locbase = sbrk(0);
+	locbase = calloc(1, MEMSIZE);
+	coremax = locbase + MEMSIZE;
 	while(!eof)
 		extdef();
 	outcode("B", EOFC);
@@ -220,7 +219,7 @@ int symbol(void)
 		if (eof)
 			return(EOFC);
 		else
-			c = getchar();
+			c = fgetc(infp);
 loop:
 	if (c==EOF) {
 		eof++;
@@ -235,17 +234,17 @@ loop:
 		}
 		tline = cval;
 		while (ctab[peekc]==SPACE)
-			peekc = getchar();
+			peekc = fgetc(infp);
 		if (peekc=='"') {
 			sp = filename;
 			while ((c = mapch('"')) >= 0)
 				*sp++ = c;
 			*sp++ = 0;
-			peekc = getchar();
+			peekc = fgetc(infp);
 		}
 		if (peekc != '\n') {
 			error("Illegal #");
-			while (getchar()!='\n' && eof==0)
+			while (fgetc(infp)!='\n' && eof==0)
 				;
 		}
 		peekc = 0;
@@ -256,7 +255,7 @@ loop:
 		line++;
 
 	case SPACE:
-		c = getchar();
+		c = fgetc(infp);
 		goto loop;
 
 	case PLUS:
@@ -298,7 +297,7 @@ loop:
 			if (c=='*') {
 				if (spnextchar() == '/') {
 					peekc = 0;
-					c = getchar();
+					c = fgetc(infp);
 					goto loop;
 				}
 			}
@@ -324,7 +323,7 @@ loop:
 		while (ctab[c]==LETTER || ctab[c]==DIGIT) {
 			if (sp < symbuf + MAXCPS)
 				*sp++ = c;
-			c = getchar();
+			c = fgetc(infp);
 		}
 		*sp++ = '\0';
 		mossym = mosflg;
@@ -343,7 +342,7 @@ loop:
 	case UNKN:
 	unkn:
 		error("Unknown character");
-		c = getchar();
+		c = fgetc(infp);
 		goto loop;
 
 	}
@@ -371,7 +370,7 @@ int getnum(void)
 	expseen = 0;
 	if ((c=spnextchar()) == '0')
 		base = 8;
-	for (;; c = getchar()) {
+	for (;; c = fgetc(infp)) {
 		*np++ = c;
 		if (ctab[c]==DIGIT || (base==16) && ('a'<=c&&c<='f'||'A'<=c&&c<='F')) {
 			if (base==8)
@@ -409,7 +408,7 @@ int getnum(void)
 			if (base==16 || maxdigit>=10)
 				error(nsyn);
 			base = 10;
-			*np++ = c = getchar();
+			*np++ = c = fgetc(infp);
 			if (c!='+' && c!='-' && ctab[c]!=DIGIT)
 				break;
 		} else if (c=='x' || c=='X') {
@@ -417,7 +416,7 @@ int getnum(void)
 				error(nsyn);
 			base = 16;
 		} else if ((c=='l' || c=='L') && sym==CON) {
-			c = getchar();
+			c = fgetc(infp);
 			sym = LCON;
 			break;
 		} else
@@ -462,7 +461,7 @@ void putstr(int lab, int max)
 	nchstr = 0;
 	if (lab) {
 		strflg++;
-		outcode("BNB", LABEL, lab, BDATA);
+		outcode("BNB", LABEL, (N_type)lab, BDATA);
 		max = 10000;
 	} else
 		outcode("B", BDATA);
@@ -471,7 +470,7 @@ void putstr(int lab, int max)
 			nchstr++;
 			if (nchstr%15 == 0)
 				outcode("0B", BDATA);
-			outcode("1N", c & 0377);
+			outcode("1N", (N_type)(c & 0377));
 		}
 	}
 	if (nchstr < max) {
@@ -532,7 +531,7 @@ int mapch(int ac)
 	if (a = mpeek)
 		mpeek = 0;
 	else
-		a = getchar();
+		a = fgetc(infp);
 loop:
 	if (a==c)
 		return(-1);
@@ -545,7 +544,7 @@ loop:
 		return(-1);
 
 	case '\\':
-		switch (a=getchar()) {
+		switch (a=fgetc(infp)) {
 
 		case 't':
 			return('\t');
@@ -569,7 +568,7 @@ loop:
 			while (++c<=3 && '0'<=a && a<='7') {
 				n <<= 3;
 				n += a-'0';
-				a = getchar();
+				a = fgetc(infp);
 			}
 			mpeek = a;
 			return(n);
@@ -579,7 +578,7 @@ loop:
 
 		case '\n':
 			line++;
-			a = getchar();
+			a = fgetc(infp);
 			goto loop;
 		}
 	}

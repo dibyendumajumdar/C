@@ -1,5 +1,3 @@
-
-
 Bell Laboratories
 
 
@@ -27,60 +25,60 @@ at all.  Until recently, the first  phase  of  the  compiler
 generated  assembly  code  for	those constructions it could
 deal with, and passed expression parse	trees,	in  absolute
 binary	form, to the second phase for code generation.	Now,
-at least, all inter-phase information is  passed  in  a  de-
-scribable form, and there are no absolute pointers involved,
+at least, all inter-phase information is  passed  in  a  describable form, 
+and there are no absolute pointers involved,
 so the coupling between the phases is not so strong.
 
-The areas in which the machine (and  system)  dependen-
-cies are most noticeable are
+The areas in which the machine (and  system)  dependencies 
+are most noticeable are
 
-1.   Storage  allocation  for  automatic variables and argu-
-     ments has already been performed, and  nodes  for	such
-     variables refer to them by offset from a display point-
-     er.  Type conversion  (for  example,  from  integer  to
-     pointer)  has  already occurred using the assumption of
-     byte addressing and 2-byte words.
+1.  Storage  allocation  for  automatic variables and arguments 
+    has already been performed, and  nodes  for	such
+    variables refer to them by offset from a display pointer.  
+    Type conversion  (for  example,  from  integer  to
+    pointer)  has  already occurred using the assumption of
+    byte addressing and 2-byte words.
 
-2.   Data representations suitable to  the  PDP-11  are  as-
-     sumed;  in  particular,  floating	point  constants are
-     passed as four words in the machine representation.
+2.  Data representations suitable to  the  PDP-11  are  assumed;  
+    in  particular,  floating	point  constants are
+    passed as four words in the machine representation.
 
 As it happens, each intermediate file is represented as
-a  sequence  of binary numbers without any explicit demarca-
-tions.	It consists of a sequence of conceptual lines,	each
+a  sequence  of binary numbers without any explicit demarcations.	
+It consists of a sequence of conceptual lines,	each
 headed	by  an	operator,  and	possibly  containing various
 operands.
 
 The operators are small numbers; to  assist  in  recognizing
-failure  in synchronization, the high-order byte of each op-
-erator word is always the octal number	376.   Operands  are
-either 16-bit binary numbers or strings of characters repre-
-senting names.	Each name is terminated by a null character.
+failure  in synchronization, the high-order byte of each operator 
+word is always the octal number	376.   Operands  are
+either 16-bit binary numbers or strings of characters representing 
+names.	Each name is terminated by a null character.
 There is no alignment requirement for numerical operands and
 so there is no padding after a name string.
 
 The binary representation was chosen to avoid  the  ne-
-cessity of converting to and from character form and to min-
-imize the size of the files.  It would be very easy to	make
+cessity of converting to and from character form and to minimize 
+the size of the files.  It would be very easy to	make
 each  operator-operand	'line'	in  the  file  be a genuine,
 printable line, with the numbers in octal or  decimal;	this
 in fact was the representation originally used.
 
 The  operators  fall  naturally into two classes: those
-which represent part of an expression, and all others.	 Ex-
-pressions  are	transmitted in a reverse-Polish notation; as
+which represent part of an expression, and all others.	 Expressions  
+are	transmitted in a reverse-Polish notation; as
 they are being read, a tree is built which is isomorphic  to
 the  tree  constructed	in the first phase.  Expressions are
-passed as a whole, with no non-expression  operators  inter-
-vening.   The reader maintains a stack; each leaf of the ex-
+passed as a whole, with no non-expression  operators  intervening.   
+The reader maintains a stack; each leaf of the ex-
 pression tree (name, constant) is pushed on the stack;	each
 unary operator replaces the top of the stack by a node whose
-operand is the old top-of-stack; each  binary  operator  re-
-places	the top pair on the stack with a single entry.	When
+operand is the old top-of-stack; each  binary  operator  replaces	
+the top pair on the stack with a single entry.	When
 the expression is complete there is exactly one item on  the
 stack.	 Following  each  expression  is  a special operator
-which passes the unique previous expression to the 'optimiz-
-er' described below and then to the code generator.
+which passes the unique previous expression to the 'optimizer' 
+described below and then to the code generator.
 
 Here  is  the  list of operators not themselves part of
 expressions.
@@ -93,11 +91,11 @@ marks the end of an input file.
 ### `BDATA flag data ...`
 
 specifies a sequence of bytes to be assembled as static
-data.  It is followed by pairs of words; the first mem-
-ber of the pair is non-zero to indicate that  the	data
-continue;	a zero flag is not followed by data and ter-
-minates the operator.  The data bytes occupy  the	low-
-order part of a word.
+data.  It is followed by pairs of words; the first member 
+of the pair is non-zero to indicate that  the	data
+continue;	a zero flag is not followed by data and terminates 
+the operator.  The data bytes occupy  the	low-order 
+part of a word.
 
 ### `WDATA flag data ...`
 
@@ -123,22 +121,21 @@ unitialized static data.
 ### `SYMDEF name`
 
 means that the symbol `name` is an external name  defined
-in the current program.  It is produced for each exter-
-nal data or function definition.
+in the current program.  It is produced for each external 
+data or function definition.
 
 ### `CSPACE name size`
 
 indicates that the name refers to	a  data  area  whose
 size  is the specified number of bytes.  It is produced
-for external data definitions without explicit initial-
-ization.
+for external data definitions without explicit initialization.
 
 ### `SSPACE size`
 
 indicates	that size bytes should be set aside for data
 storage.  It is used to pad out  short  initializations
-of  external  data and to reserve space for static (in-
-ternal) data.  It will be preceded  by  an  appropriate
+of  external  data and to reserve space for static (internal) data.  
+It will be preceded  by  an  appropriate
 label.
 
 ### `EVEN`
@@ -162,14 +159,14 @@ labels its entry point.
 
 is produced at the start  of  each  function  for	each
 static  variable or label declared therein.  Subsequent
-uses of the variable will be in terms of the given num-
-ber.   The  code  generator uses this only to produce a
+uses of the variable will be in terms of the given number.   
+The  code  generator uses this only to produce a
 debugging symbol table.
 
 ### `ANAME name number`
 
-Likewise, each automatic variable's name and stack off-
-set  is specified by this operator.  Arguments count as
+Likewise, each automatic variable's name and stack offset  
+is specified by this operator.  Arguments count as
 automatics.
 
 ### `RNAME name number`
@@ -186,8 +183,8 @@ function, just after its label (`RLABEL`).
 
 is used to indicate the number of	registers  used  for
 register  variables.   It	actually  gives the register
-number of the lowest free register; it is redundant be-
-cause the `RNAME` operators could be counted instead.
+number of the lowest free register; it is redundant because 
+the `RNAME` operators could be counted instead.
 
 ### `PROFIL`
 
@@ -207,13 +204,13 @@ pairs; the list is terminated by a 0 label.
 
 ### `LABEL number`
 
-generates	an  internal label.  It is referred to else-
-where using the given number.
+generates	an  internal label.  It is referred to 
+elsewhere using the given number.
 
 ### `BRANCH number`
 
-indicates an unconditional transfer to the internal la-
-bel number given.
+indicates an unconditional transfer to the internal 
+label number given.
 
 ### `RETRN`
 
@@ -232,8 +229,8 @@ indicates a name occurring in an expression.  The first
 form is used when the name is external; the second when
 the name is automatic, static, or a register.  Then the
 number indicates the stack offset, the label number, or
-the register number as appropriate.  Class and type en-
-coding is described elsewhere.
+the register number as appropriate.  Class and type 
+encoding is described elsewhere.
 
 ### `CON type value`
 
@@ -247,9 +244,9 @@ notation.
 
 ### `SFCON type value`
 
-transmits a floating-point constant whose value is cor-
-rectly represented by its high-order word in PDP-11 no-
-tation.
+transmits a floating-point constant whose value is 
+correctly represented by its high-order word in PDP-11 
+notation.
 
 ### `NULL`
 
@@ -259,10 +256,10 @@ operand is the argument list.
 
 ### `CBRANCH label cond`
 
-produces a conditional branch.  It is an expression op-
-erator, and will be followed by an `EXPR`.  The branch to
+produces a conditional branch.  It is an expression 
+operator, and will be followed by an `EXPR`.  The branch to
 the  label number takes place if the expression's truth
-value is the same as that of `cond`.  That is, if  cond=1
+value is the same as that of `cond`.  That is, if  `cond=1`
 and  the  expression  evaluates  to true, the branch is
 taken.
 
@@ -271,13 +268,13 @@ taken.
 There are binary operators corresponding to  each	such
 source-language  operator;  the  type  of the result of
 each is passed as well.  Some  perhaps-unexpected	ones
-are:  `COMMA`,  which is a right-associative operator de-
-signed to simplify right-to-left evaluation of function
+are:  `COMMA`,  which is a right-associative operator 
+designed to simplify right-to-left evaluation of function
 arguments;  prefix  and postfix `++` and `--`, whose second
 operand is the increment amount, as a  `CON`;  `QUEST`  and
 `COLON`,   to   express  the  conditional  expression  as
-`a?(b:c)`; and a sequence of special operators for  ex-
-pressing  relations  between  pointers, in case pointer
+`a?(b:c)`; and a sequence of special operators for  
+expressing  relations  between  pointers, in case pointer
 comparison is different from integer  comparison  (e.g.
 unsigned).
 
@@ -285,10 +282,10 @@ unsigned).
 
 There are also numerous unary operators.  These include
 `ITOF`, `FTOI`, `FTOL`, `LTOF`, `ITOL`, `LTOI` which convert  among
-floating,	long, and integer; `JUMP` which branches indi-
-rectly through a label expression; `INIT`, which compiles
-the  value of a constant expression used as an initial-
-izer; `RFORCE`, which is used before a return sequence or
+floating,	long, and integer; `JUMP` which branches 
+indirectly through a label expression; `INIT`, which compiles
+the  value of a constant expression used as an 
+initializer; `RFORCE`, which is used before a return sequence or
 a switch to place a value in an agreed-upon register.
 
 ## Expression Optimization
@@ -298,25 +295,25 @@ a fairly comprehensive analysis.  This is performed  by  the
 optim  routine and a number of subroutines; the major things
 done are
 
-1.   Modifications and simplifications of the  tree  so  its
-     value may be computed more efficiently and conveniently
-     by the code generator.
+1.  Modifications and simplifications of the  tree  so  its
+    value may be computed more efficiently and conveniently
+    by the code generator.
 
-2.   Marking each interior node with an estimate of the num-
-     ber  of registers required to evaluate it.  This regis-
-     ter count is needed to guide the code generation  algo-
-     rithm.
+2.  Marking each interior node with an estimate of the 
+    number  of registers required to evaluate it.  This 
+    register count is needed to guide the code generation  
+    algorithm.
 
 One  thing  that is definitely not done is discovery or
-exploitation of common subexpressions, nor is this done any-
-where in the compiler.
+exploitation of common subexpressions, nor is this done 
+anywhere in the compiler.
 
 The basic organization is simple: a depth-first scan of
-the tree.  Optim does nothing for leaf nodes (except for au-
-tomatics;  see below), and calls `unoptim` to handle unary op-
-erators.  For binary operators, it calls itself  to  process
-the operands, then treats each operator separately.  One im-
-portant case is commutative and associative operators, which
+the tree.  Optim does nothing for leaf nodes (except for 
+automatics;  see below), and calls `unoptim` to handle unary 
+operators.  For binary operators, it calls itself  to  process
+the operands, then treats each operator separately.  One 
+important case is commutative and associative operators, which
 are handled by acommute.
 
 Here  is a brief catalog of the transformations carried
@@ -326,9 +323,9 @@ they may well be useful on machines other than the PDP-11.
 
 1.   As indicated in the discussion of	`unoptim`  below,  the
      optimizer	can  create a node type corresponding to the
-     location addressed by a register plus a  constant	off-
-     set.  Since this is precisely the implementation of au-
-     tomatic variables and arguments, where the register  is
+     location addressed by a register plus a  constant	
+     offset.  Since this is precisely the implementation of 
+     automatic variables and arguments, where the register  is
      fixed  by convention, such variables are changed to the
      new form to simplify later processing.
 
@@ -347,8 +344,8 @@ they may well be useful on machines other than the PDP-11.
      algorithm prefers to have	the  right  operand  require
      fewer registers than the left.
 
-5.   An  expression  minus a constant is turned into the ex-
-     pression plus the negative constant, and  the  acommute
+5.   An  expression  minus a constant is turned into the 
+     expression plus the negative constant, and  the  acommute
      routine  is  called to take advantage of the properties
      of addition.
 
@@ -358,8 +355,8 @@ they may well be useful on machines other than the PDP-11.
      with  a negated right operand, since the PDP-11 lacks a
      general right-shift operator.
 
-8.   A number of special cases are simplified, such as divi-
-     sion or multiplication by `1`, and shifts by `0`.
+8.   A number of special cases are simplified, such as 
+     division or multiplication by `1`, and shifts by `0`.
 
 The `unoptim` routine performs the same sort of processing for
 unary operators.
@@ -369,8 +366,8 @@ unary operators.
 2.   If `r` is a register and `c` is a constant or	the  address
      of  a  static  or	external  variable,  the expressions
      `*(r+c)` and `*r` are turned into	a  special  kind  of
-     name  node which expresses the name itself and the off-
-     set.  This  simplifies  subsequent  processing  because
+     name  node which expresses the name itself and the 
+     offset.  This  simplifies  subsequent  processing  because
      such  constructions  can appear as the the address of a
      PDP-11 instruction.
 
@@ -379,8 +376,8 @@ unary operators.
      make the addition explicit again; this is done  because
      the PDP-11 has no `load address` instruction.
 
-4.   Constructions  like `*r++` and `*--r` where `r` is a reg-
-     ister are discovered and marked as being  implementable
+4.   Constructions  like `*r++` and `*--r` where `r` is a 
+     register are discovered and marked as being  implementable
      using the PDP-11 auto-increment and -decrement modes.
 
 5.   If `!` is applied to a relational, the `!` is discarded
@@ -395,8 +392,8 @@ The acommute routine, called for associative and commu-
 tative operators, discovers clusters of the same operator at
 the  top  levels of the current tree, and arranges them in a
 list: for `a+((b+c)+(d+f))` the list would  be`a,b,c,d,e,f`.
-After  each  subtree is optimized, the list is sorted in de-
-creasing difficulty of computation; as mentioned above,  the
+After  each  subtree is optimized, the list is sorted in 
+decreasing difficulty of computation; as mentioned above,  the
 code  generation algorithm works best when left operands are
 the difficult ones.  The 'degree of difficulty' computed  is
 actually finer than the mere number of registers required; a
@@ -410,9 +407,9 @@ multiplication by 1 and addition of 0.
 
 A special routine is invoked to  handle  sums  of  products.
 Distrib  is  based  on the fact that it is better to compute
-`c1*c2*x + c1*y` as `c1*(c2*x + y)` and makes the divisibil-
-ity  tests  required to assure the correctness of the trans-
-formation.  This transformation is rarely possible with code
+`c1*c2*x + c1*y` as `c1*(c2*x + y)` and makes the 
+divisibility  tests  required to assure the correctness of the 
+transformation.  This transformation is rarely possible with code
 directly  written by the user, but it invariably occurs as a
 result of the implementation of multi-dimensional arrays.
 
@@ -422,21 +419,21 @@ expressions which result.
 ## Code Generation
 
 The  grand  plan  for code-generation is independent of
-any particular machine; it depends largely on a set  of  ta-
-bles.	But this fact does not necessarily make it very easy
+any particular machine; it depends largely on a set  of  
+tables.	But this fact does not necessarily make it very easy
 to modify the compiler to produce code for  other  machines,
 both  because  there  is  a  good  deal of machine-dependent
-structure in the tables, and because in any event  such  ta-
-bles are non-trivial to prepare.
+structure in the tables, and because in any event  such  
+tables are non-trivial to prepare.
 
 The  arguments to the basic code generation routine 
 `rcexpr` are a pointer to a tree representing an expression, the
-name  of a code-generation table, and the number of a regis-
-ter in which the value of the expression should  be  placed.
+name  of a code-generation table, and the number of a 
+register in which the value of the expression should  be  placed.
 `rcexpr` returns the number of the register in which the value
-actually ended up; its caller may need to produce a `mov`  in-
-struction  if the value really needs to be in the given reg-
-ister.	There are four code generation tables.
+actually ended up; its caller may need to produce a `mov`  
+instruction  if the value really needs to be in the given 
+register.	There are four code generation tables.
 
 `Regtab` is the basic one, which actually  does  the  job
 described above: namely, compile code which places the value
@@ -450,8 +447,8 @@ if.  It is clearly silly to calculate the value (0 or 1)  of
 the expression `a==b` in the context `if (a==b) ... `
 
 The `sptab` table is used when the value of an expression
-is to be pushed on the stack, for example when it is an  ac-
-tual  argument.   For example in the function call `f(a)` it
+is to be pushed on the stack, for example when it is an  
+actual  argument.   For example in the function call `f(a)` it
 is a bad idea to load a into a register which is then pushed
 on  the stack, when there is a single instruction which does
 the job.
@@ -481,13 +478,13 @@ and returns `-1` if no such entry is found, letting `rcexpr` try
 again with a different table.  A successful match  yields  a
 string	containing both literal characters which are written
 out and pseudo-operations, or macros,  which  are  expanded.
-Before	studying  the contents of these strings we will con-
-sider how table entries are matched against trees.
+Before	studying  the contents of these strings we will 
+consider how table entries are matched against trees.
 
 Recall that most non-leaf nodes in an  expression	tree
-contain the name of the operator, the type of the value rep-
-resented, and pointers to the subtrees (operands).  They al-
-so  contain  an estimate of the number of registers required
+contain the name of the operator, the type of the value 
+represented, and pointers to the subtrees (operands).  They 
+also  contain  an estimate of the number of registers required
 to evaluate the expression, placed there by the  expression-
 optimizer  routines.   The register counts are used to guide
 the code generation process, which is based  on  the  Sethi-
@@ -497,11 +494,11 @@ The main code generation tables consist of entries each
 containing an operator number and a pointer  to  a  subtable
 for  the  corresponding  operator.  A subtable consists of a
 sequence of entries, each  with  a  key  describing  certain
-properties of the operands of the operator involved; associ-
-ated with the key is a code string.  Once the subtable	cor-
-responding  to	the  operator  is  found,  the	subtable  is
-searched linearly until a key is found such that the proper-
-ties demanded by the key are compatible with the operands of
+properties of the operands of the operator involved; 
+associated with the key is a code string.  Once the subtable	
+corresponding  to	the  operator  is  found,  the	subtable  is
+searched linearly until a key is found such that the 
+properties demanded by the key are compatible with the operands of
 the tree node.	A successful match returns the code  string;
 an  unsuccessful search, either for the operator in the main
 table or a compatble key in the subtable, returns a  failure
@@ -509,8 +506,8 @@ indication.
 
 The  tables  are  all contained in a file which must be
 processed to obtain an assembly language program.  Thus they
-are written in a special-purpose language.  To provided def-
-initeness to the following discussion, here is an example of
+are written in a special-purpose language.  To provided 
+definiteness to the following discussion, here is an example of
 a subtable entry.
 
 ```
@@ -521,32 +518,31 @@ a subtable entry.
 
 The  `%` indicates the key; the information following (up to
 a blank line) specifies the code string.  Very briefly, this
-entry  is  in the subtable for `+` of regtab; the key speci-
-fies that the left operand is  any  integer,  character,  or
-pointer  expression, and the right operand is any word quan-
-tity which is directly addressible (e.g. a variable or	con-
-stant).   The  code  string  calls for the generation of the
+entry  is  in the subtable for `+` of regtab; the key 
+specifies that the left operand is  any  integer,  character,  or
+pointer  expression, and the right operand is any word 
+quantity which is directly addressible (e.g. a variable or	
+constant).   The  code  string  calls for the generation of the
 code to compile the left (first) operand  into	the  current
 register  (`F`)  and  then  to	produce an `add` instruction
 which adds the second operand (`A2`) to the register  (`R`).
 All of the notation will be explained below.
 
-Only  three features of the operands are used in decid-
-ing whether a match has occurred.  They are:
+Only  three features of the operands are used in 
+deciding whether a match has occurred.  They are:
 
-1.   Is the type of the operand compatible with that demand-
-     ed?
+1.   Is the type of the operand compatible with that demanded?
 
-2.   Is the 'degree of difficulty' (in a sense described be-
-     low) compatible?
+2.   Is the 'degree of difficulty' (in a sense described 
+     below) compatible?
 
-3.   The table may demand that the operand have a `*` (indi-
-     rection operator) as its highest operator.
+3.   The table may demand that the operand have a `*` 
+     (indirection operator) as its highest operator.
 
-As suggested above, the key for a subtable entry is in-
-dicated by a `%,` and a comma-separated pair  of  specifica-
-tions  for  the  operands.  (The second specification is ig-
-nored for unary operators).   A  specification	indicates  a
+As suggested above, the key for a subtable entry is 
+indicated by a `%,` and a comma-separated pair  of  
+specifications  for  the  operands.  (The second specification is 
+ignored for unary operators).   A  specification	indicates  a
 type  requirement by including one of the following letters.
 If no type letter is present,  any  integer,  character,  or
 pointer  operand  will	satisfy  the requirement (not float,
@@ -562,8 +558,8 @@ double, or long).
 
 * **l**    A long (32-bit integer) operand is required.
 
-Before discussing the 'degree of difficulty'  specifica-
-tion,  the  algorithm  has  to be explained more completely.
+Before discussing the 'degree of difficulty'  
+specification,  the  algorithm  has  to be explained more completely.
 Rcexpr (and cexpr) are called  with  a	register  number  in
 which  to  place their result.	Registers 0, 1, ... are used
 during evaluation of expressions; the maximum register which
@@ -572,17 +568,17 @@ variables, but in any event only registers 0 through  4  are
 available  since  r5  is used as a stack frame header and r6
 (sp) and r7 (pc) have special hardware properties.  The code
 generation  routines assume that when called with register n
-as argument, they may use n+1, ...  (up to the first  regis-
-ter  variable)	as  temporaries.   Consider  the  expression
-`X+Y`, where both X and Y are expressions.  As a  first  ap-
-proximation,  there  are three ways of compiling code to put
+as argument, they may use n+1, ...  (up to the first  
+register  variable)	as  temporaries.   Consider  the  expression
+`X+Y`, where both X and Y are expressions.  As a  first  
+approximation,  there  are three ways of compiling code to put
 this expression in register n.
 
 1.   If Y is an addressible cell, (recursively) put  X	into
      register n and add Y to it.
 
-2.   If  Y is an expression that can be calculated in k reg-
-     isters, where k smaller than the  number  of  registers
+2.   If  Y is an expression that can be calculated in k 
+     registers, where k smaller than the  number  of  registers
      available,  compile  X into register n, Y into register
      n+1, and add register n+1 to n.
 
@@ -592,42 +588,41 @@ this expression in register n.
 
 The distinction between cases 2 and 3 therefore depends
 on whether the right operand can be compiled in fewer than k
-registers, where k is the number of free registers left  af-
-ter  registers 0 through n are taken: 0 through n-1 are pre-
-sumed to contain already computed temporary results; n will,
+registers, where k is the number of free registers left  
+after  registers 0 through n are taken: 0 through n-1 are 
+presumed to contain already computed temporary results; n will,
 in  case  2, contain the value of the left operand while the
 right is being evaluated.
 
-These considerations should make clear  the  specifica-
-tion  codes  for  the  degree of difficulty, bearing in mind
+These considerations should make clear  the  
+specification  codes  for  the  degree of difficulty, bearing in mind
 that a number of special cases are also present:
 
 * **z**    is satisfied when the operand is zero, so that  special
      code can be produced for expressions like `x = 0`.
 
-* **1**    is satisfied when the operand is the constant 1, to op-
-     timize cases like left and right shift by 1, which  can
+* **1**    is satisfied when the operand is the constant 1, to 
+     optimize cases like left and right shift by 1, which  can
      be done efficiently on the PDP-11.
 
 * **c**    is  satisfied  when  the operand is a positive (16-bit)
      constant; this takes care of some special cases in long
      arithmetic.
 
-* **a**    is  satisfied when the operand is addressible; this oc-
-     curs not only for variables and constants, but also for
-     some  more  complicated constructions, such as indirec-
-     tion through a simple variable, `*p++`  where  p  is  a
-     register  variable (because of the PDP-11's auto-incre-
-     ment address mode), and `*(p+c)` where p is a  register
+* **a**    is  satisfied when the operand is addressible; this 
+     occurs not only for variables and constants, but also for
+     some  more  complicated constructions, such as 
+     indirection through a simple variable, `*p++`  where  p  is  a
+     register  variable (because of the PDP-11's auto-increment 
+     address mode), and `*(p+c)` where p is a  register
      and  c  is  a  constant.  Precisely, the requirement is
      that the operand refers to a cell whose address can  be
-     written as a source or destination of a PDP-11 instruc-
-     tion.
+     written as a source or destination of a PDP-11 instruction.
 
 * **e**    is satisfied by an operand whose value can be generated
      in  a  register using no more than k registers, where k
-     is the number of registers left (not counting the	cur-
-     rent register).  The `e` stands for 'easy'.
+     is the number of registers left (not counting the	
+     current register).  The `e` stands for 'easy'.
 
 n    is  satisfied by any operand.  The `n` stands for 'any-thing'.
 
@@ -644,19 +639,19 @@ requires  the  operand to have an indirection as its leading
 operator.  Examples below should clarify the utility of this
 specification.
 
-Now let us consider the contents of the code string as-
-sociated with each subtable entry.   Conventionally,  lower-
-case  letters  in  this string represent literal information
+Now let us consider the contents of the code string 
+associated with each subtable entry.   Conventionally,  
+lower-case  letters  in  this string represent literal information
 which is copied directly to the output.  Upper-case  letters
 generally introduce specific macro-operations, some of which
 may be followed by modifying information.  The code  strings
 in  the  tables  are  written  with  tabs and new-lines used
 freely to suggest instructions which will be generated;  the
 table-compiling  program compresses tabs (using the 0200 bit
-of the next character) and throws  away  some  of  the	new-
-lines.	For example the macro `F` is ordinarily written on a
-line by itself; but since its expansion will end with a new-
-line, the new-line after `F` itself is dispensable.  This is
+of the next character) and throws  away  some  of  the	
+newlines.	For example the macro `F` is ordinarily written on a
+line by itself; but since its expansion will end with a 
+newline, the new-line after `F` itself is dispensable.  This is
 all to reduce the size of the stored tables.
 
 
@@ -665,24 +660,24 @@ compiling  subtrees.   Recall that this is done by the cexpr
 routine.  In the following discussion the 'current register'
 is  generally  the  argument register to cexpr; that is, the
 place where the result is desired.  The 'next  register'  is
-numbered one higher than the current register.	(This expla-
-nation isn't fully true because of complications,  described
+numbered one higher than the current register.	(This 
+explanation isn't fully true because of complications,  described
 below,	involving operations which require even-odd register
 pairs.)
 
-F    causes a recursive call to the rcexpr routine  to	com-
-     pile  code  which	places the value of the first (left)
+F    causes a recursive call to the rcexpr routine  to	
+    compile  code  which	places the value of the first (left)
      operand of the operator in the current register.
 
 F1   generates code which places  the  value  of  the  first
      operand  in  the next register.  It is incorrectly used
-     if there might be no next register; that is, if the de-
-     gree  of difficulty of the first operand is not 'easy';
+     if there might be no next register; that is, if the 
+     degree  of difficulty of the first operand is not 'easy';
      if not, another register might not be available.
 
 FS   generates code which pushes  the  value  of  the  first
-     operand on the stack, by calling rcexpr specifying spt-
-     ab as the table.
+     operand on the stack, by calling `rcexpr` specifying 
+     `sptab` as the table.
 
 Analogously,
 
@@ -707,17 +702,17 @@ R+   which expands into the the name of the current register
 
 R-   This  is  another	complication, involving division and
      mod.  These operations involve a pair of  registers  of
-     which the odd-numbered contains the left operand.	Cex-
-     pr arranges that the current register is  odd;  the  R-
-     notation  allows  the  code to refer to the next lower,
+     which the odd-numbered contains the left operand.	`cexpr` 
+     arranges that the current register is  odd;  the  
+     R-notation  allows  the  code to refer to the next lower,
      even-numbered register.
 
 To refer to addressible quantities, there are the notations:
 
 A1   causes generation of the address specified by the first
-     operand.  For this to be legal, the operand must be ad-
-     dressible;  its  key  must contain an `a` or a more re-
-     strictive specification.
+     operand.  For this to be legal, the operand must be 
+     addressible;  its  key  must contain an `a` or a more 
+     restrictive specification.
 
 A2   correspondingly generates the  address  of  the  second
      operand providing it has one.
@@ -750,36 +745,35 @@ operands.
 ```
 
 The first two sequences handle some special cases.  Actually
-it turns out that handling a right operand of 0 is  unneces-
-sary  since  the  expression-optimizer throws out adds of 0.
+it turns out that handling a right operand of 0 is  
+unnecessary  since  the  expression-optimizer throws out adds of 0.
 Adding 1 by using the `increment` instruction is done  next,
 and  then  the	case where the right operand is addressible.
 It must be a word quantity, since the PDP-11 lacks  an	`add byte`  
 instruction.   Finally  the  cases  where  the  right
-operand either can, or cannot, be done in the available reg-
-isters are treated.
+operand either can, or cannot, be done in the available 
+registers are treated.
 
 The next macro-instructions are conveniently introduced
 by noticing that the above table is suitable for subtraction
-as well as addition, since no use is made of the commutativ-
-ity of addition.  All that  is	needed	is  substitution  of
+as well as addition, since no use is made of the 
+commutativity of addition.  All that  is	needed	is  substitution  of
 `sub` for `add` and `dec` for `inc`.  Considerable saving of
-space is achieved by factoring out  several  similar  opera-
-tions.
+space is achieved by factoring out  several  similar  
+operations.
 
 
 I    is  replaced  by a string from another table indexed by
-     the operator in the node  being  expanded.   This	sec-
-     ondary  table  actually contains two strings per opera-
-     tor.
+     the operator in the node  being  expanded.   This	
+     secondary  table  actually contains two strings per operator.
 
-I'   is replaced by the second string in the side table  en-
-     try for the current operator.
+I'   is replaced by the second string in the side table  entry 
+     for the current operator.
 
 Thus,  given  that  the  entries for `+` and `-` in the
 side table (which is called instab)  are  `add`  and  `inc`,
-`sub` and `dec` respectively, the middle of of the above ad-
-dition table can be written
+`sub` and `dec` respectively, the middle of of the above 
+addition table can be written
 
 ```
 	%n,1
@@ -794,14 +788,13 @@ dition table can be written
 and it will be suitable for subtraction, and  several  other
 operators, as well.
 
-Next,  there is the question of character and floating-
-point operations.
+Next,  there is the question of character and floating-point operations.
 
 B1   generates the letter `b` if  the  first  operand  is  a
      character,  `f`  if  it is float or double, and nothing
      otherwise.  It is used in a context like `movB1`  which
-     generates	a  `mov`,  `movb`, or `movf` instruction ac-
-     cording to the type of the operand.
+     generates	a  `mov`,  `movb`, or `movf` instruction 
+     according to the type of the operand.
 
 B2   is just like B1 but applies to the second operand.
 
@@ -821,12 +814,12 @@ operator
 ```
 
 Note first that two key specifications can be applied to the
-same code string.  Next, observe that when  a  word  is  as-
-signed	to  a  byte or to a word, or a word is assigned to a
+same code string.  Next, observe that when  a  word  is  assigned	
+to  a  byte or to a word, or a word is assigned to a
 byte, a single instruction, a mov or  movb  as	appropriate,
 does  the  job.  However, when a byte is assigned to a word,
-it must pass through a register to implement the sign-exten-
-sion rules:
+it must pass through a register to implement the 
+sign-extension rules:
 
 ```
 	%a,n
@@ -839,8 +832,8 @@ properly.  Consider the expression `X + *Y`, where X  and  Y
 are  expressions,  Assuming  that Y is more complicated than
 just a variable, but on the other hand qualifies  as  'easy'
 in  the context, the expression would be compiled by placing
-the value of X in a register, that of *Y in the next  regis-
-ter,  and  adding  the	registers.  It is easy to see that a
+the value of X in a register, that of *Y in the next  
+register,  and  adding  the	registers.  It is easy to see that a
 better job can be done by compiling X, then Y (into the next
 register),  and producing the instruction symbolized by `add (R1),R`.  
 This scheme avoids generating the instruction `mov (R1),R1`  
@@ -871,8 +864,8 @@ may require an operand to have an indirection as its highest
 operator.   To	make  use  of the requirement, the following
 macros are provided.
 
-F*   the first operand must have the form *X.  If in partic-
-     ular  it  has  the  form *(Y + c), for some constant c,
+F*   the first operand must have the form *X.  If in 
+     particular  it  has  the  form *(Y + c), for some constant c,
      then code is produced which places the value  of  Y  in
      the  current  register.   Otherwise,  code  is produced
      which loads X into the current register.
@@ -892,11 +885,11 @@ SS*  resembles FS* except that	it  applies  to  the  second
 To  capture  the constant that may have been skipped over in
 the above macros, there are
 
-#1   The first operand must have the form *X; if in particu-
-     lar it has the form *(Y + c) for c a constant, then the
+1.   The first operand must have the form *X; if in particular 
+     it has the form *(Y + c) for c a constant, then the
      constant is written out, otherwise a null string.
 
-#2   is the same as #1 except that  the  second  operand  is
+2.   is the same as #1 except that  the  second  operand  is
      used.
 
 Now  we  can  improve the addition table above.  Just before
@@ -922,9 +915,9 @@ When using the stacking macros there is no place to use  the
 constant  as  an index word, so that particular special case
 doesn't occur.
 
-The constant mentioned above can actually be more	gen-
-eral  than  a number.  Any quantity acceptable to the assem-
-bler as an expression will do, in particular the address  of
+The constant mentioned above can actually be more	
+general  than  a number.  Any quantity acceptable to the assembler 
+as an expression will do, in particular the address  of
 a  static  cell,  perhaps with a numeric offset.  If x is an
 external character array, the expression `x[i+5] =  0`	will
 generate the code
@@ -947,15 +940,15 @@ used.  The divide instruction, used to implement the  divide
 and  mod  operations,  requires the dividend to be placed in
 the odd member of an even-odd pair; other  peculiarities  of
 multiplication	make  it simplest to put the multiplicand in
-an odd-numbered register.  There is no theory which optimal-
-ly  accounts for this kind of requirement.  Cexpr handles it
+an odd-numbered register.  There is no theory which optimally  
+accounts for this kind of requirement.  Cexpr handles it
 by checking for a multiply, divide,  or  mod  operation;  in
 these  cases, its argument register number is incremented by
-one or two so that it is odd, and if the operation  was  di-
-vide or mod, so that it is a member of a free even-odd pair.
-The routine which determines the  number  of  registers  re-
-quired	estimates,  conservatively, that at least two regis-
-ters are required for a multiplication	and  three  for  the
+one or two so that it is odd, and if the operation  was  
+divide or mod, so that it is a member of a free even-odd pair.
+The routine which determines the  number  of  registers  
+required	estimates,  conservatively, that at least two 
+registers are required for a multiplication	and  three  for  the
 other peculiar operators.  After the expression is compiled,
 the register where the result actually ended up is returned.
 (Divide  and  mod are actually the same operation except for
@@ -966,8 +959,7 @@ end  up  in  unexpected  places, and this possibility adds a
 further level of complexity.  The simplest way	of  handling
 the  problem is always to move the result to the place where
 the caller expected it, but this  will	produce  unnecessary
-register  moves in many simple cases; `a = b*c` would gener-
-ate
+register  moves in many simple cases; `a = b*c` would generate
 
 ```
 	mov  b,r1
@@ -987,40 +979,40 @@ comes from a table entry like
 	     mov  R,A1
 ```
 
-it  is	sufficient to redefine the meaning of `R` after pro-
-cessing the `S` which does the multiply.  This technique  is
-in fact used; the tables are written in such a way that cor-
-rect code is produced.	The trouble is	that  the  technique
+it  is	sufficient to redefine the meaning of `R` after 
+processing the `S` which does the multiply.  This technique  is
+in fact used; the tables are written in such a way that 
+correct code is produced.	The trouble is	that  the  technique
 cannot	be used in general, because it invalidates the count
-of the number of registers required for an expression.	Con-
-sider  just `a*b + X` where X is some expression.  The algo-
-rithm assumes that the value of a*b, once computed, requires
+of the number of registers required for an expression.	
+Consider  just `a*b + X` where X is some expression.  The algorithm 
+assumes that the value of a*b, once computed, requires
 just  one register.  If there are three registers available,
-and X requires two registers to compute, then  this  expres-
-sion will match a key specifying `%n,e`.  If a*b is computed
-and left in register 1, then there are, contrary to expecta-
-tions,	no  longer two registers available to compute X, but
+and X requires two registers to compute, then  this  
+expression will match a key specifying `%n,e`.  If a*b is computed
+and left in register 1, then there are, contrary to 
+expectations,	no  longer two registers available to compute X, but
 only one, and bad code will be produced.  To  guard  against
-this possibility, cexpr checks the result returned by recur-
-sive calls which implement F, S and their relatives.  If the
+this possibility, cexpr checks the result returned by 
+recursive calls which implement F, S and their relatives.  If the
 result	is  not in the expected register, then the number of
 registers required by the other operand is  checked;  if  it
 can  be  done  using those registers which remain even after
 making unavailable the unexpectedly-occupied register,	then
 the notions of the 'next register' and possibly the 'current
-register' are redefined.  Otherwise a register-copy instruc-
-tion  is  produced.  A register-copy is also always produced
-when the current operator is one of those  which  have	odd-
-even requirements.
+register' are redefined.  Otherwise a register-copy 
+instruction  is  produced.  A register-copy is also always produced
+when the current operator is one of those  which  have	
+odd-even requirements.
 
 Finally, there are a few loose-end macro operations and
 facts about the tables.  The operators:
 
-V    is used for long operations.  It is written with an ad-
-     dress like a machine instruction; it expands into `adc`
+V    is used for long operations.  It is written with an 
+     address like a machine instruction; it expands into `adc`
      (add carry) if the operation is an  additive  operator,
-     `sbc`  (subtract  carry) if the operation is a subtrac-
-     tive operator, and disappears, along with the  rest  of
+     `sbc`  (subtract  carry) if the operation is a 
+     subtractive operator, and disappears, along with the  rest  of
      the  line,  otherwise.   Its purpose is to allow common
      treatment of logical operations, which have no carries,
      and additive and subtractive operations, which generate
@@ -1028,17 +1020,16 @@ V    is used for long operations.  It is written with an ad-
 
 T    generates a `tst`  instruction if the first  operand  of
      the  tree	does  not set the condition codes correctly.
-     It is used with divide and mod  operations,  which  re-
-     quire  a  sign-extended 32-bit operand.  The code table
-     for the operations contains an `sxt` (sign-extend)  in-
-     struction	to generate the high-order part of the divi-
-     dend.
+     It is used with divide and mod  operations,  which  
+     require  a  sign-extended 32-bit operand.  The code table
+     for the operations contains an `sxt` (sign-extend)  
+     instruction	to generate the high-order part of the dividend.
 
 H    is analogous to the `F` and `S` macros, except that  it
      calls  for  the generation of code for the current tree
      (not one of its operands) using regtab.  It is used  in
-     cctab  for  all the operators which, when executed nor-
-     mally, set the condition codes  properly  according  to
+     cctab  for  all the operators which, when executed 
+     normally, set the condition codes  properly  according  to
      the result.  It prevents a `tst` instruction from being
      generated for constructions like `if (a+b) ...`   since
      after  calculation  of the value of `a+b` a conditional
@@ -1047,8 +1038,8 @@ H    is analogous to the `F` and `S` macros, except that  it
 All of the discussion above is in	terms  of  operators
 with operands.	Leaves of the expression tree (variables and
 constants), however, are  peculiar  in	that  they  have  no
-operands.  In order to regularize the matching process, cex-
-pr examines its operand to determine if it is a leaf; if so,
+operands.  In order to regularize the matching process, 
+`cexpr` examines its operand to determine if it is a leaf; if so,
 it  creates  a	special `load` operator whose operand is the
 leaf, and substitutes it for the argument tree; this  allows
 the table entry for the created operator to use the `A1` no-
@@ -1074,13 +1065,13 @@ while part of the `=+` table is
 	%    [move3]
 ```
 
-Labels are written as `%[ ... : ]`, before the key  specifi-
-cations;  references are written with `%  [ ... ]` after the
+Labels are written as `%[ ... : ]`, before the key  
+specifications;  references are written with `%  [ ... ]` after the
 key.  Peculiarities in the implementation make it  necessary
 that labels appear before references to them.
 
-The  example  illustrates the utility of allowing sepa-
-rate keys to point to the same code string.  The  assignment
+The  example  illustrates the utility of allowing separate 
+keys to point to the same code string.  The  assignment
 code  works  properly if either the right operand is a word,
 or the left operand is a byte; but since there	is  no	`add byte`  
 instruction the addition code has to be restricted to
@@ -1111,12 +1102,12 @@ scheme would generate
 
 Delay is called for each expression input to rcexpr, and  it
 searches  for  postfix ++ and -- operators.  If one is found
-applied to a variable, the tree is patched to bypass the op-
-erator	and  compiled  as  it  stands; then the increment or
+applied to a variable, the tree is patched to bypass the 
+operator	and  compiled  as  it  stands; then the increment or
 decrement itself is done.  The effect is as if `a = b;	b++`
-had been written.  In this example, of course, the user him-
-self could have done the same job, but more complicated  ex-
-amples	are  easily constructed, for example `switch (x++)`.
+had been written.  In this example, of course, the user 
+himself could have done the same job, but more complicated  
+examples	are  easily constructed, for example `switch (x++)`.
 An essential restriction is that the condition codes not  be
 required.   It	would be incorrect to compile `if (a++) ...`
 as
@@ -1127,12 +1118,12 @@ as
 	beq  ...
 ```
 
-because the `inc` destroys the required setting of the	con-
-dition codes.
+because the `inc` destroys the required setting of the	
+condition codes.
 
 Reordering  is  a	similar  sort of optimization.	Many
-cases which it detects are useful mainly with register vari-
-ables.	 If  `r`	is  a register variable, the expression 
+cases which it detects are useful mainly with register 
+variables.	 If  `r`	is  a register variable, the expression 
 `r = x+y` is best compiled as
 
 ```
@@ -1153,17 +1144,17 @@ not a register, the two sequences are the same size, but the
 second is slightly faster.)  The scheme is  to	compile  the
 expression  as	if it had been written `r = x; r =+ y`.  The
 reorder routine is called with a pointer to each  tree	that
-rcexpr is about to compile; if it has the right characteris-
-tics, the `r = x` tree is constructed and passed recursively
+rcexpr is about to compile; if it has the right characteristics, 
+the `r = x` tree is constructed and passed recursively
 to  rcexpr; then the original tree is modified to read `r =+ y` 
 and the calling instance of rcexpr compiles that instead.
 Of  course  the  whole	business is itself recursive so that
 more extended forms of the same phenomenon are handled, like
 `r = x + y | z`.
 
-Care does have to be taken to avoid 'optimizing' an ex-
-pression like `r = x + r` into `r = x; r =+ r`.  It  is  re-
-quired that the right operand of the expression on the right
+Care does have to be taken to avoid 'optimizing' an 
+expression like `r = x + r` into `r = x; r =+ r`.  It  is  
+required that the right operand of the expression on the right
 of the `=` be a `'`, distinct from the register variable.
 
 The second case that reorder handles is expressions  of
@@ -1183,8 +1174,8 @@ whereas if r were a register it would be better to produce
 	mov  r,x
 ```
 
-When reorder discovers that a register variable is being as-
-signed to in a subexpression, it calls rcexpr recursively to
+When reorder discovers that a register variable is being 
+assigned to in a subexpression, it calls rcexpr recursively to
 compile the subexpression, then fiddles the tree  passed  to
 it  so	that  the  register  variable  itself appears as the
 operand instead of the whole subexpression.  Here  care  has
@@ -1198,10 +1189,10 @@ operand  of  an  assignment operator other than `=` or as an
 operand of prefix `++` or `--`.  Unless condition-code tests
 are  involved, when a subexpression like `(a =+ b)` is seen,
 the assignment is performed and the argument  tree  modified
-so that a is its operand; effectively `x + (y =+ z)` is com-
-piled as `y =+ z; x + y`.  Similarly, prefix  increment  and
-decrement  are	pulled out and performed first, then the re-
-mainder of the expression.
+so that a is its operand; effectively `x + (y =+ z)` is 
+compiled as `y =+ z; x + y`.  Similarly, prefix  increment  and
+decrement  are	pulled out and performed first, then the 
+remainder of the expression.
 
 Throughout code generation, the expression optimizer is
 called whenever delay or reorder change the expression tree.

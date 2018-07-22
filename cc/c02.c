@@ -4,6 +4,8 @@
 
 #include "c0.h"
 
+#include <string.h>
+
 /*
  * Process a single external definition
  */
@@ -60,9 +62,9 @@ void extdef(void)
 			o = (length((union tree *)ds)+ALIGN) & ~ALIGN;
 			if (sclass==STATIC) {
 				setinit(ds);
-				outcode("BSBBSBN", SYMDEF, "", BSS, NLABEL, ds->name, SSPACE, o);
+				outcode("BSBBSBN", SYMDEF, "", BSS, NLABEL, ds->name, SSPACE, (N_type)o);
 			} else if (scflag)
-				outcode("BSN", CSPACE, ds->name, o);
+				outcode("BSN", CSPACE, ds->name, (N_type)o);
 		} else {
 			if (o!=ASSIGN) {
 				error("Declaration syntax");
@@ -108,7 +110,7 @@ void cfunc(void)
 	declist(ARG);
 	outcode("B", SAVE);
 	if (proflg)
-		outcode("BNS", PROFIL, isn++, funcsym->name);
+		outcode("BNS", PROFIL, (N_type)isn++, funcsym->name);
 	funchead();
 	branch(sloc);
 	label(sloc+1);
@@ -117,10 +119,10 @@ void cfunc(void)
 	if ((peeksym = symbol()) != LBRACE)
 		error("Compound statement required");
 	statement();
-	outcode("BNB", LABEL, retlab, RETRN);
+	outcode("BNB", LABEL, (N_type)retlab, RETRN);
 	label(sloc);
 /* add STAUTO; overlay bug fix, coupled with section in c11.c */
-	outcode("BN", SETSTK, -maxauto+STAUTO);
+	outcode("BN", SETSTK, (N_type)(-maxauto+STAUTO));
 	branch(sloc+1);
 	locbase = cb;
 }
@@ -218,7 +220,7 @@ int cinit(struct nmlist *anp, int flex, int sclass)
 	 * the declared size for benefit of "sizeof"
 	 */
 	if (ninit<nel && sclass!=AUTO)
-		outcode("BN", SSPACE, (nel-ninit)*width);
+		outcode("BN", SSPACE, (N_type) ((nel-ninit)*width));
 	else if (ninit>nel) {
 		if (flex && nel==0) {
 			np.hsubsp[-1] = ninit;
@@ -270,7 +272,7 @@ void strinit(struct nmlist *np, int sclass)
 	} while ((o=symbol())==COMMA && (*mlp || brace));
 	if (sclass!=AUTO && sclass!=REG) {
 		if (*mlp)
-			outcode("BN", SSPACE, np->hstrp->S.ssize - (*mlp)->hoffset);
+			outcode("BN", SSPACE, (N_type)(np->hstrp->S.ssize - (*mlp)->hoffset));
 		outcode("B", EVEN);
 	}
 	if (o!=RBRACE || brace==0)
@@ -312,7 +314,7 @@ stmt:
 			if ((o=symbol())==RBRACE) {
 				autolen = sauto;
 				if (sreg!=regvar)
-					outcode("BN", SETREG, sreg);
+					outcode("BN", SETREG, (N_type) sreg);
 				regvar = sreg;
 				blkend();
 				return;
@@ -656,9 +658,9 @@ void pswitch(void)
 	label(swlab);
 	if (deflab==0)
 		deflab = brklab;
-	outcode("BNN", SWIT, deflab, line);
+	outcode("BNN", SWIT, (N_type) deflab, (N_type) line);
 	for (; cswp < swp; cswp++)
-		outcode("NN", cswp->swlab, cswp->swval);
+		outcode("NN", (N_type) cswp->swlab, (N_type) cswp->swval);
 	outcode("0");
 	label(brklab);
 	deflab = dl;
@@ -719,7 +721,7 @@ void funchead(void)
 				error("Not an argument: %s", cs->name);
 		}
 	}
-	outcode("BN", SETREG, regvar);
+	outcode("BN", SETREG, (N_type) regvar);
 }
 
 void blockhead(void)
@@ -797,7 +799,7 @@ void prste(struct nmlist *cs)
 		return;
 
 	}
-	outcode("BSN", nkind, cs->name, cs->hoffset);
+	outcode("BSN", nkind, cs->name, (N_type) cs->hoffset);
 }
 
 /*

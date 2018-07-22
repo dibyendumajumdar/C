@@ -651,11 +651,8 @@ Tblock(int n)
 		exit(1);
 	}
 	if ((treebase += n) >= coremax) {
-		if (sbrk(1024) == (char *)-1) {
-			error("Out of space");
-			exit(1);
-		}
-		coremax += 1024;
+		error("Out of space");
+		exit(1);
 	}
 	return(p);
 }
@@ -693,11 +690,8 @@ Dblock(int n)
 		exit(1);
 	}
 	if (locbase > coremax) {
-		if (sbrk(1024) == (char *)-1) {
-			error("out of space");
-			exit(1);
-		}
-		coremax += 1024;
+		error("out of space");
+		exit(1);
 	}
 	return(p);
 }

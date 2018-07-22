@@ -499,12 +499,12 @@ int decl1(int askw, struct nmlist *atptr, int offset, struct nmlist *absname)
 	} else if (skw==STATIC) {
 		dsym->hoffset = isn;
 		if (isinit) {
-			outcode("BBN", DATA, LABEL, isn++);
+			outcode("BBN", DATA, LABEL, (N_type) isn++);
 			if (cinit(dsym, 1, STATIC) & ALIGN)
 				outcode("B", EVEN);
 		} else
-			outcode("BBNBN", BSS, LABEL, isn++, SSPACE,
-			  rlength((union tree *)dsym));
+			outcode("BBNBN", BSS, LABEL, (N_type) isn++, SSPACE,
+			  (N_type) rlength((union tree *)dsym));
 		outcode("B", PROG);
 		isinit = 0;
 	} else if (skw==REG && isinit) {

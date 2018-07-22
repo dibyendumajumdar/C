@@ -4,6 +4,9 @@
 
 #include "c0.h"
 
+#include <stdarg.h>
+#include <stdlib.h>
+
 /*
  * Reduce the degree-of-reference by one.
  * e.g. turn "ptr-to-int" into "int".
@@ -33,7 +36,7 @@ int incref(int t)
 void cbranch(union tree *t, int lbl, int cond)
 {
 	treeout(t, 0);
-	outcode("BNNN", CBRANCH, lbl, cond, line);
+	outcode("BNNN", CBRANCH, (N_type) lbl, (N_type)cond, (N_type)line);
 }
 
 /*
@@ -46,15 +49,15 @@ void rcexpr(union tree *tp)
 	 */
 	if (tp->t.op==INIT && tp->t.tr1->t.op==CON) {
 		if (tp->t.type==CHAR || tp->t.type==UNCHAR) {
-			outcode("B1N0", BDATA, tp->t.tr1->c.value);
+			outcode("B1N0", BDATA, (N_type) tp->t.tr1->c.value);
 			return;
 		} else if (tp->t.type==INT || tp->t.type==UNSIGN) {
-			outcode("BN", SINIT, tp->t.tr1->c.value);
+			outcode("BN", SINIT, (N_type) tp->t.tr1->c.value);
 			return;
 		}
 	}
 	treeout(tp, 0);
-	outcode("BN", EXPR, line);
+	outcode("BN", EXPR, (N_type) line);
 }
 
 void treeout(union tree *tp, int isstruct)
@@ -73,28 +76,28 @@ void treeout(union tree *tp, int isstruct)
 		hp = &tp->t.tr1->n;
 		if (hp->hclass==TYPEDEF)
 			error("Illegal use of type name");
-		outcode("BNN", NAME, hp->hclass==0?STATIC:hp->hclass, tp->t.type);
+		outcode("BNN", NAME, (N_type) (hp->hclass==0?STATIC:hp->hclass), (N_type) tp->t.type);
 		if (hp->hclass==EXTERN)
 			outcode("S", hp->name);
 		else
-			outcode("N", hp->hoffset);
+			outcode("N", (N_type) hp->hoffset);
 		break;
 
 	case LCON:
-		outcode("BNNN", tp->l.op, tp->l.type, (unsigned short)(tp->l.lvalue>>16),
-		   (unsigned short)tp->l.lvalue);
+		outcode("BNNN", tp->l.op, (N_type) tp->l.type, (N_type)(unsigned short)(tp->l.lvalue>>16),
+		   (N_type)(unsigned short)tp->l.lvalue);
 		break;
 
 	case CON:
-		outcode("BNN", tp->c.op, tp->c.type, tp->c.value);
+		outcode("BNN", tp->c.op, (N_type) tp->c.type, (N_type) tp->c.value);
 		break;
 
 	case FCON:
-		outcode("BNF", tp->f.op, tp->f.type, tp->f.cstr);
+		outcode("BNF", tp->f.op, (N_type) tp->f.type, tp->f.cstr);
 		break;
 
 	case STRING:
-		outcode("BNNN", NAME, STATIC, tp->t.type, tp->t.tr1);
+		outcode("BNNN", NAME, (N_type) STATIC, (N_type) tp->t.type, (N_type) tp->t.tr1);
 		break;
 
 	case FSEL:
@@ -109,25 +112,25 @@ void treeout(union tree *tp, int isstruct)
 
 	case AMPER:
 		treeout(tp->t.tr1, 1);
-		outcode("BN", tp->t.op, tp->t.type);
+		outcode("BN", tp->t.op, (N_type) tp->t.type);
 		break;
 
 
 	case CALL:
 		treeout(tp->t.tr1, 1);
 		treeout(tp->t.tr2, 0);
-		outcode("BN", CALL, tp->t.type);
+		outcode("BN", CALL, (N_type) tp->t.type);
 		break;
 
 	default:
 		treeout(tp->t.tr1, nextisstruct);
 		if (opdope[tp->t.op]&BINARY)
 			treeout(tp->t.tr2, nextisstruct);
-		outcode("BN", tp->t.op, tp->t.type);
+		outcode("BN", tp->t.op, (N_type) tp->t.type);
 		break;
 	}
 	if (nextisstruct && isstruct==0)
-		outcode("BNN", STRASG, STRUCT, tp->t.strp->S.ssize);
+		outcode("BNN", STRASG, (N_type) STRUCT, (N_type) tp->t.strp->S.ssize);
 }
 
 /*
@@ -135,7 +138,7 @@ void treeout(union tree *tp, int isstruct)
  */
 void branch(int lab)
 {
-	outcode("BN", BRANCH, lab);
+	outcode("BN", BRANCH, (N_type) lab);
 }
 
 /*
@@ -143,7 +146,7 @@ void branch(int lab)
  */
 void label(int l)
 {
-	outcode("BN", LABEL, l);
+	outcode("BN", LABEL, (N_type) l);
 }
 
 /*
@@ -354,51 +357,60 @@ void outcode(char *s, ...)
 {
 	va_list args;
 
-	register FILE *bufp;
-	register char *np;
+	FILE *bufp;
+	char *np;
 	int n;
 
-#if 0
-	bufp = stdout;
+	bufp = outfp; /* Main output file */
 	if (strflg)
-		bufp = sbufp;
+		bufp = sbufp; /* String output file */
 	va_start(args, s);
 	for (;;) switch(*s++) {
-	case 'B':
-		fputc(*ap++, bufp);
-		fputc(0376, bufp);
+	case 'B': {
+		int op = va_arg(args, int);
+		const char *opname = opnames[op];
+		if (opname) 
+			fprintf(bufp, "\n%s;", opname);
+		else
+			fprintf(bufp, "\n%d;", op);
 		continue;
-
-	case 'N':
-		fputc(*ap, bufp);
-		fputc(*ap++>>8, bufp);
+	}
+	case 'N': {
+		N_type n = va_arg(args, N_type);
+		fprintf(bufp, "%lld;", n);
 		continue;
-
+	}
 	case 'F':
-		np = (char *)*ap++;
+		np = va_arg(args, char *);
 		n = 1000;
 		goto str;
-
-	case 'S':
-		np = (char *)*ap++;
+	
+	case 'S': 
+		np = va_arg(args, char *);
 		n = MAXCPS-1;
+		fputc('"', bufp);
 		if (*np)
 			fputc('_', bufp);
 	str:
 		while(n-- && *np) {
-			fputc(*np++ & 0177, bufp);
+			char ch = *np++ & 0177;
+			if (ch == '"') {
+				fputc('\\', bufp);
+			}
+			fputc(ch, bufp);
 		}
-		fputc(0, bufp);
+		fputc('"', bufp);
+		fputc(';', bufp);
 		continue;
 
 	case '1':
-		fputc(1, bufp);
-		fputc(0, bufp);
+		fputc('1', bufp);
+		fputc(';', bufp);
 		continue;
 
 	case '0':
-		fputc(0, bufp);
-		fputc(0, bufp);
+		fputc('0', bufp);
+		fputc(';', bufp);
 		continue;
 
 	case '\0':
@@ -406,12 +418,12 @@ void outcode(char *s, ...)
 			error("Write error on temp");
 			exit(1);
 		}
+		va_end(args);
 		return;
 
 	default:
 		error("Botch in outcode");
 	}
-#endif
 }
 
 unsigned int hash(char *sp)

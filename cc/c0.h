@@ -18,6 +18,7 @@
 */
 
 #define	MAXCPS	32	/* # chars per symbol */
+#define MEMSIZE 1024*1024 /* total compiler memory */
 
 #define	LTYPE	long	/* change to int if no long consts */
 #define	MAXINT	077777	/* Largest positive short integer */
@@ -65,6 +66,15 @@ struct nmlist {
 	char	*name;		/* ASCII name */
 };
 
+struct SS {
+	int	ssize;			/* structure size */
+	struct nmlist **memlist;	/* member list */
+};
+struct FS {
+	int	flen;			/* field width in bits */
+	int	bitoffs;		/* shift count */
+};
+
 /*
  * format of a structure description
  *  Same gadget is also used for fields,
@@ -72,14 +82,8 @@ struct nmlist {
  * Finally, it is used for parameter collection.
  */
 union str {
-	struct SS {
-		int	ssize;			/* structure size */
-		struct nmlist **memlist;	/* member list */
-	} S;
-	struct FS {
-		int	flen;			/* field width in bits */
-		int	bitoffs;		/* shift count */
-	} F;
+	struct SS S;
+	struct FS F;
 	struct nmlist P;
 };
 
@@ -215,6 +219,7 @@ int	nmems;
 struct	nmlist	structhole;
 int	blklev;
 int	mossym;
+const char *opnames[];
 
 /*
   operators
@@ -466,21 +471,22 @@ int	mossym;
 #define	FINIT	040
 #define	FLABL	0100
 
+
 /*
  * functions
  */
-char	*sbrk();
-
 void werror(const char *s, ...);
 void error(const char *s, ...);
+
+/* The type of N args in outcode*/
+typedef long long N_type;
+void outcode(char *s, ...);
 
 union tree *block(int op, int t, int *subs, union str *str, union tree *p1, union tree *p2);
 union tree *nblock(struct nmlist *ds);
 union tree *cblock(int v);
-char *starttree(void);
 char *Dblock(int n);
 unsigned int hash(char *sp);
-void outcode(char *s, ...);
 int spnextchar(void);
 int nextchar(void);
 void endtree(char *tp);
