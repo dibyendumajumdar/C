@@ -3,8 +3,10 @@
 Bell Laboratories
 
 
-# A Tour through the UNIX- C	      
+# A Tour through the UNIX C Compiler	      
+
 date: November 2, 1997
+
 from: D. M. Ritchie
 
 ## The Intermediate Language
@@ -757,7 +759,7 @@ instruction.   Finally  the  cases  where  the  right
 operand either can, or cannot, be done in the available reg-
 isters are treated.
 
-     The next macro-instructions are conveniently introduced
+The next macro-instructions are conveniently introduced
 by noticing that the above table is suitable for subtraction
 as well as addition, since no use is made of the commutativ-
 ity of addition.  All that  is	needed	is  substitution  of
