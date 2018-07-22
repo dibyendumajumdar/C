@@ -2,8 +2,14 @@
 
 int	tabflg;
 int	labno	= 1;
+int opno;
 FILE	*curbuf;
 FILE	*obuf;
+FILE	*oobuf;
+char  oname[]="/tmp/cvoptaXXXXXX";
+char ooname[]="/tmp/cvoptbXXXXXX";
+char lbuf[BUFSIZ];
+char *lbufp = lbuf;
 
 main(argc, argv)
 char **argv;
@@ -39,7 +45,7 @@ char **argv;
 	*	+0100
 */
 
-	int c, snlflg, nlflg, t, smode, m, ssmode, peekc;
+	int c, snlflg, nlflg, t, smode, m, ssmode, peekc, side;
 
 	smode = nlflg = snlflg = ssmode = 0;
 	if (argc>1)
@@ -52,10 +58,17 @@ char **argv;
 			fprintf(stderr, "%s?\n", argv[2]);
 			return(1);
 		}
-	if ((obuf = fopen("cvopt.tmp", "w")) == NULL) {
-		fprintf(stderr, "cvopt.tmp?\n");
+	mktemp(oname);
+	if ((obuf = fopen(oname, "w")) == NULL) {
+		fprintf(stderr, "%s?\n", oname);
 		exit(1);
 	}
+	mktemp(ooname);
+	if ((oobuf = fopen(ooname, "w")) == NULL) {
+		fprintf(stderr, "%s?\n", ooname);
+		exit(1);
+	}
+	printf("#include \"c1.h\"");
 	curbuf = obuf;
 loop:
 	c = getchar();
@@ -64,28 +77,29 @@ loop:
 	if (ssmode!=0 && c!='%') {
 		ssmode = 0;
 		curbuf = stdout;
-		fprintf(curbuf, "L%d:<", labno++);
+		fprintf(curbuf, "\nstatic char L%d[]=\"", labno++);
 	}
 	switch(c) {
 
 	case EOF:
-		fprintf(obuf, "0\n");
+		fprintf(obuf, "\t{0},\n};\n");
 		fclose(obuf);
-		fprintf(stdout, ".even\n");
-		if (freopen("cvopt.tmp", "r", stdin) == NULL) {
-			fprintf(stderr, "tmp?\n");
+		if (freopen(oname, "r", stdin) == NULL) {
+			fprintf(stderr, "%s?\n",oname);
 			exit(1);
 		}
 		while ((c = getchar()) != EOF)
 			putchar(c);
-		unlink("cvopt.tmp");
+		unlink(oname);
+		fclose(oobuf);
+		if (freopen(ooname, "r", stdin) == NULL) {
+			fprintf(stderr, "%s?\n",ooname);
+			exit(1);
+		}
+		while ((c = getchar()) != EOF)
+			putchar(c);
+		unlink(ooname);
 		return(0);
-
-	case ':':
-		if (!smode)
-			fprintf(curbuf, "=.+2; 0"); else
-			put(':');
-		goto loop;
 
 	case 'A':
 		if ((c=getchar())=='1' || c=='2') {
@@ -155,19 +169,19 @@ l1:
 			goto l1;
 
 		case 'S':
-			t =+ 2;
+			t += 2;
 			goto l1;
 
 		case 'C':
-			t =+ 4;
+			t += 4;
 			goto l1;
 
 		case '1':
-			t =+ 8;
+			t += 8;
 			goto l1;
 
 		case '2':
-			t =+ 16;
+			t += 16;
 			goto l1;
 		}
 		ungetc(c, stdin);
@@ -185,16 +199,18 @@ l1:
 			curbuf = obuf;
 		if (ssmode==0) {
 			if ((peekc=getchar())=='[') {
-				curbuf = stdout;
-				while((c=getchar())!=']')
-					put(c);
+				printf("\n#define ");
+				while((c=getchar())!=']' && c!=':')
+					putchar(c);
+				printf(" L%d\n",labno);
+				if (c==':') getchar();
 				getchar();
-				fprintf(curbuf, ";");
 				curbuf = obuf;
 				goto loop;
 			}
 			ungetc(peekc, stdin);
 		}
+		side=0;
 loop1:
 		switch (c=getchar()) {
 
@@ -207,7 +223,7 @@ loop1:
 			goto pf;
 
 		case ',':
-			put(';');
+			side=1;
 			goto loop1;
 
 		case 'i':
@@ -244,24 +260,41 @@ loop1:
 			m = 63;
 pf:
 			if ((c=getchar())=='*')
-				m =+ 0100; else
+				m += 0100; else
 				ungetc(c, stdin);
-			fprintf(curbuf, ".byte %o,%o", m, t);
+			if (side==0) {
+				if (opno==0) fprintf(curbuf,"\nstruct optab optab[]={\n");
+				fprintf(curbuf,"\t{");
+			}
+			fprintf(curbuf, "%d,%d,", m, t);
 			goto loop1;
 		case '[':
-			fprintf(curbuf, "L%d=", labno++);
+			printf("\n#define L%d ", labno++);
 			while ((c=getchar())!=']')
-				put(c);
+				putchar(c);
+			printf("\n");
 			ssmode = 0;
 			smode = 0;
 			goto loop;
 
+		case '{':
+		for(;;) {
+			while ((c=getchar())!='%') putc(c,oobuf);
+			if ((c=getchar())=='}') goto loop;
+			else {putc('%',oobuf); putc(c,oobuf);}
+		}
+			
 		case '\n':
-			fprintf(curbuf, "\nL%d\n", labno);
+			fprintf(curbuf, "L%d},	/* %d */\n", labno,opno);
+			++opno;
 			ssmode = 1;
 			nlflg = 1;
 			smode = 1;
 			goto loop;
+
+		case '/':
+			comment(c); goto loop1;
+
 		}
 		put(c);
 		goto loop1;
@@ -279,13 +312,14 @@ pf:
 		goto loop;
 
 	case '\n':
+		lbufp=lbuf;
 		if (!smode)  {
 			put('\n');
 			goto loop;
 		}
 		if (nlflg) {
 			nlflg = 0;
-			fprintf(curbuf, "\\0>\n");
+			fprintf(curbuf, "\";");
 			curbuf = obuf;
 			smode = 0;
 			goto loop;
@@ -293,15 +327,29 @@ pf:
 		if (!snlflg)
 			fprintf(curbuf, "\\n");
 		snlflg = 0;
-		fprintf(curbuf, ">\n<");
 		nlflg = 1;
 		goto loop;
+
+	case '/':
+		comment(c); goto loop;
 
 	case 'X':
 	case 'Y':
 	case 'T':
 		snlflg++;
+		break;
+
+	case ':':
+		fseek(curbuf,(long)(lbuf-lbufp),2);
+		*lbufp='\0';
+		if (opno!=0) {fprintf(curbuf,"\t{0},\n"); ++opno;}
+		printf("\n#define %s &optab[%d]\n",lbuf,opno);
+		fprintf(curbuf,"/* %s */",lbuf);
+		lbufp=lbuf;
+		goto loop;
+
 	}
+	*lbufp++=c;
 	put(c);
 	goto loop;
 }
@@ -322,7 +370,10 @@ l1:
 		goto l1;
 
 	case 'b':
-		f = 3;
+		if (f==9)
+			f = 10;
+		else
+			f = 3;
 		goto l1;
 
 	case 'f':
@@ -334,7 +385,10 @@ l1:
 		goto l1;
 
 	case 'u':
-		f = 9;
+		if (f==3)
+			f = 10;
+		else
+			f = 9;
 		goto l1;
 
 	case 's':
@@ -346,7 +400,7 @@ l1:
 		goto l1;
 
 	case 'p':
-		f =+ 16;
+		f += 16;
 		goto l1;
 	}
 	ungetc(c, stdin);
@@ -357,7 +411,20 @@ put(c)
 {
 	if (tabflg) {
 		tabflg = 0;
-		fprintf(curbuf, ">;.byte %o;<", c+0200);
-	} else
+		fprintf(curbuf, "\\%o", c+0200);
+	} else {
+		if (c=='"') putc('\\',curbuf);
 		putc(c, curbuf);
+	}
+}
+
+comment(c)
+register char c;
+{
+	putc(c,curbuf);
+	if ((c=getchar())=='*') for (;;) {
+		do putc(c,curbuf); while ((c=getchar())!='*');
+		putc(c,curbuf);
+		if ((c=getchar())=='/') {putc(c,curbuf); break;}
+	} else ungetc(c,stdin);
 }

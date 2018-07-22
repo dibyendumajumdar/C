@@ -179,16 +179,28 @@ rmove()
 		continue;
 
 	case CBR:
+		r = -1;
 		if (p->back->op==TST || p->back->op==CMP) {
 			if (p->back->op==TST) {
 				singop(p->back);
 				savereg(RT2, "$0");
 			} else
 				dualop(p->back);
-			r = compare(p->subop, findcon(RT1), findcon(RT2));
+			if (equstr(regs[RT1], regs[RT2])
+			 && natural(regs[RT1]) && natural(regs[RT2]))
+				r = compare(p->subop, "$1", "$1");
+			else
+				r = compare(p->subop, findcon(RT1), findcon(RT2));
 			if (r==0) {
-				p->back->back->forw = p->forw;
-				p->forw->back = p->back->back;
+				if (p->forw->op==CBR
+				  || p->forw->op==SXT
+				  || p->forw->op==CFCC) {
+					p->back->forw = p->forw;
+					p->forw->back = p->back;
+				} else {
+					p->back->back->forw = p->forw;
+					p->forw->back = p->back->back;
+				}
 				decref(p->ref);
 				p = p->back->back;
 				nchange++;
@@ -283,7 +295,6 @@ struct node *p;
 ilen(p)
 register struct node *p;
 {
-	register l;
 
 	switch (p->op) {
 	case LABEL:
@@ -358,6 +369,7 @@ struct node *
 nonlab(p)
 struct node *p;
 {
+	CHECK(10);
 	while (p && p->op==LABEL)
 		p = p->forw;
 	return(p);
@@ -369,8 +381,13 @@ register n;
 {
 	register char *p;
 
-	n++;
-	n &= ~01;
+#define round(a,b) ((((a)+(b)-1)/(b))*(b))
+	n=round(n,sizeof(char *));
+	if (alasta+n < alastr) {
+		p = alasta;
+		alasta += n;
+		return(p);
+	}
 	if (lasta+n >= lastr) {
 		if (sbrk(2000) == (char *)-1) {
 			fprintf(stderr, "C Optimizer: out of space\n");
@@ -426,6 +443,8 @@ char *as;
 	for (i=0; i<NREG+NREG; i++)
 		if (*regs[i]=='*' && equstr(s, regs[i]+1))
 			regs[i][0] = 0;
+	if (equstr(s, conloc))
+		conloc[0] = '\0';
 	while ((i = findrand(s, flt)) >= 0)
 		regs[i][0] = 0;
 	while (*s) {
@@ -468,7 +487,10 @@ struct node *ap;
 	*p2 = 0;
 	if (*p1++ !=',')
 		return;
-	while (*p2++ = *p1++);
+	while (*p1==' ' || *p1=='\t')
+		p1++;
+	while (*p2++ = *p1++)
+		;
 }
 
 findrand(as, flt)
@@ -496,11 +518,15 @@ char *as;
 check()
 {
 	register struct node *p, *lp;
+	register count;
 
 	lp = &first;
+	count = 0;
 	for (p=first.forw; p!=0; p = p->forw) {
+		if (++count > 10000)
+			abort(0);
 		if (p->back != lp)
-			abort();
+			abort(1);
 		lp = p;
 	}
 }

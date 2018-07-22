@@ -4,6 +4,10 @@
 
 #include <stdio.h>
 
+#ifndef	CHECK
+#define	CHECK(x)
+#endif
+
 #define	JBR	1
 #define	CBR	2
 #define	JMP	3
@@ -107,6 +111,8 @@ int	debug;
 int	lastseg;
 char	*lasta;
 char	*lastr;
+char	*alasta;
+char	*alastr;
 char	*firstr;
 char	revbr[];
 char	regs[12][20];

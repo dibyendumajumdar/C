@@ -1,11 +1,10 @@
-#
 /*
  *	 C object code improver
  */
 
 #include "c2.h"
 
-struct optab optab[] {
+struct optab optab[] = {
 	"jbr",	JBR,
 	"jeq",	CBR | JEQ<<8,
 	"jne",	CBR | JNE<<8,
@@ -59,9 +58,11 @@ struct optab optab[] {
 	".end",	END,
 	0,	0};
 
-char	revbr[] { JNE, JEQ, JGT, JLT, JGE, JLE, JHIS, JLOS, JHI, JLO };
+char	revbr[] = { JNE, JEQ, JGT, JLT, JGE, JLE, JHIS, JLOS, JHI, JLO };
 int	isn	= 20000;
 int	lastseg	= -1;
+
+#define	NSTK	5000
 
 main(argc, argv)
 char **argv;
@@ -69,6 +70,7 @@ char **argv;
 	register int niter, maxiter, isend;
 	extern end;
 	int nflag;
+	char	stspace[NSTK];
 
 	if (argc>1 && argv[1][0]=='+') {
 		argc--;
@@ -93,10 +95,12 @@ char **argv;
 			exit(1);
 		}
 	}
-	lasta = firstr = lastr = sbrk(2);
+	lasta = firstr = lastr = sbrk(sizeof(char *));
 	maxiter = 0;
 	opsetup();
 	do {
+	alasta = stspace;
+	alastr = &stspace[NSTK];
 		isend = input();
 		movedat();
 		niter = 0;
@@ -472,6 +476,7 @@ iterate()
 
 	nchange = 0;
 	for (p = first.forw; p!=0; p = p->forw) {
+		CHECK(0);
 		if ((p->op==JBR||p->op==CBR||p->op==JSW) && p->ref) {
 			rp = nonlab(p->ref);
 			if (rp->op==JBR && rp->labno && p->labno!=rp->labno) {
@@ -480,6 +485,7 @@ iterate()
 				decref(p->ref);
 				rp->ref->refc++;
 				p->ref = rp->ref;
+				CHECK(1);
 				nchange++;
 			}
 		}
@@ -496,6 +502,7 @@ iterate()
 				p->forw = p1->forw;
 				p->subop = revbr[p->subop];
 				nchange++;
+				CHECK(2);
 				nskip++;
 			}
 		}
@@ -510,6 +517,7 @@ iterate()
 					decref(p->forw->ref);
 				p->forw = p->forw->forw;
 				p->forw->back = p;
+				CHECK(3);
 			}
 			rp = p->forw;
 			while (rp && rp->op==LABEL) {
@@ -519,6 +527,7 @@ iterate()
 					p = p->back;
 					decref(rp);
 					nchange++;
+					CHECK(4);
 					njp1++;
 					break;
 				}
@@ -551,6 +560,7 @@ register struct node *p1;
 		p1->labno = p3->labno;
 		p1->code = 0;
 		nxjump++;
+		CHECK(5);
 		nchange++;
 	}
 }
@@ -581,6 +591,7 @@ register struct node *oldp;
 	lp->forw = oldp;
 	oldp->back->forw = lp;
 	oldp->back = lp;
+	CHECK(6);
 	return(lp);
 }
 
@@ -600,14 +611,17 @@ struct node *p;
 			return(p1);
 	if (p2->op!=JBR && p2->op!=JMP)
 		goto ivloop;
+	if (p1==p2)
+		return(p1);
 	p2 = p2->forw;
 	p3 = p1->ref;
 	while (p3) {
 		if (p3->op==JBR || p3->op==JMP) {
-			if (p1==p3)
+			if (p1==p3 || p1->forw==p3 || p1->back==p3)
 				return(p1);
 			ncmot++;
 			nchange++;
+			CHECK(70);
 			p1->back->forw = p2;
 			p1->forw->back = p3;
 			p2->back->forw = p3->forw;
@@ -615,6 +629,7 @@ struct node *p;
 			p2->back = p1->back;
 			p3->forw = p1->forw;
 			decref(p1->ref);
+			CHECK(7);
 			return(p2);
 		} else
 			p3 = p3->forw;
@@ -655,6 +670,7 @@ ivloop:
 		nrlab--;
 	loopiv++;
 	nchange++;
+	CHECK(8);
 	return(p3);
 }
 
@@ -689,6 +705,7 @@ struct node *ap1, *ap2;
 			p2->ref = p3;
 			nchange++;
 			ncomj++;
+			CHECK(9);
 		} else
 			return;
 	}

@@ -1,8 +1,5 @@
-#
 /*
  * C compiler, phase 1
- *
- *
  * Handles processing of declarations,
  * except for top-level processing of
  * externals.
@@ -16,7 +13,7 @@
 declist(sclass)
 {
 	register sc, offset;
-	struct hshtab typer;
+	struct nmlist typer;
 
 	offset = 0;
 	sc = sclass;
@@ -34,7 +31,7 @@ declist(sclass)
  */
 getkeywords(scptr, tptr)
 int *scptr;
-struct hshtab *tptr;
+struct nmlist *tptr;
 {
 	register skw, tkw, longf;
 	int o, isadecl, ismos, unsignf;
@@ -47,9 +44,9 @@ struct hshtab *tptr;
 	tptr->hsubsp = NULL;
 	tkw = -1;
 	skw = *scptr;
-	ismos = skw==MOS||skw==MOU;
+	ismos = skw==MOS||skw==MOU? FMOS: 0;
 	for (;;) {
-		mosflg = ismos && isadecl;
+		mosflg = isadecl? ismos: 0;
 		o = symbol();
 		if (o==NAME && csym->hclass==TYPEDEF && tkw<0) {
 			tkw = csym->htype;
@@ -82,6 +79,8 @@ struct hshtab *tptr;
 			break;
 
 		case ENUM:
+			if (longf || unsignf)
+				error("Perverse modifier on 'enum'");
 			strdec(ismos, cval);
 			cval = INT;
 			goto types;
@@ -94,10 +93,13 @@ struct hshtab *tptr;
 		case CHAR:
 		case FLOAT:
 		case DOUBLE:
+		case VOID:
 		types:
-			if (tkw>=0)
+			if (tkw>=0 && (tkw!=INT || cval!=INT))
 				error("Type clash");
 			tkw = cval;
+			if (unscflg && cval==CHAR)
+				unsignf++;
 			break;
 	
 		default:
@@ -111,6 +113,8 @@ struct hshtab *tptr;
 			if (unsignf) {
 				if (tkw==INT)
 					tkw = UNSIGN;
+				else if (tkw==CHAR)
+					tkw = UNCHAR;
 				else
 					error("Misplaced 'unsigned'");
 			}
@@ -134,47 +138,53 @@ struct hshtab *tptr;
  * Process a structure, union, or enum declaration; a subroutine
  * of getkeywords.
  */
-struct str *
+union str *
 strdec(mosf, kind)
 {
 	register elsize, o;
-	register struct hshtab *ssym;
+	register struct nmlist *ssym;
 	int savebits;
-	struct hshtab **savememlist;
+	struct nmlist **savememlist;
+	union str *savesparent;
 	int savenmems;
-	struct str *strp;
-	struct hshtab *ds;
-	struct hshtab *mems[NMEMS];
-	struct hshtab typer;
+	union str *strp;
+	struct nmlist *ds;
+	struct nmlist *mems[NMEMS];
+	struct nmlist typer;
 	int tagkind;
 
 	if (kind!=ENUM) {
 		tagkind = STRTAG;
-		mosflg = 1;
-	} else
+		mosflg = FTAG;
+		if (kind==UNION)
+			mosflg = FUNION;
+	} else {
 		tagkind = ENUMTAG;
+		mosflg = FENUM;
+	}
 	ssym = 0;
 	if ((o=symbol())==NAME) {
 		ssym = csym;
 		mosflg = mosf;
 		o = symbol();
 		if (o==LBRACE && ssym->hblklev<blklev)
-			pushdecl(ssym);
+			ssym = pushdecl(ssym);
+		if (ssym->hclass && ssym->hclass!=tagkind) {
+			defsym = ssym;
+			redec();
+			ssym = pushdecl(ssym);
+		}
 		if (ssym->hclass==0) {
 			ssym->hclass = tagkind;
-			ssym->strp = gblock(sizeof(*strp));
-			funcbase = curbase;
-			ssym->strp->ssize = 0;
-			ssym->strp->memlist = NULL;
+			ssym->hstrp = (union str *)Dblock(sizeof(struct SS));
+			ssym->hstrp->S.ssize = 0;
+			ssym->hstrp->S.memlist = NULL;
 		}
-		if (ssym->hclass != tagkind)
-			redec();
-		strp = ssym->strp;
+		strp = ssym->hstrp;
 	} else {
-		strp = gblock(sizeof(*strp));
-		funcbase = curbase;
-		strp->ssize = 0;
-		strp->memlist = NULL;
+		strp = (union str *)Dblock(sizeof(struct SS));
+		strp->S.ssize = 0;
+		strp->S.memlist = NULL;
 	}
 	mosflg = 0;
 	if (o != LBRACE) {
@@ -188,8 +198,10 @@ strdec(mosf, kind)
 		mosflg = 0;
 		savebits = bitoffs;
 		savememlist = memlist;
+		savesparent = sparent;
 		savenmems = nmems;
 		memlist = mems;
+		sparent = strp;
 		nmems = 2;
 		bitoffs = 0;
 		if (kind==ENUM) {
@@ -200,15 +212,15 @@ strdec(mosf, kind)
 			elsize = declist(kind==UNION?MOU:MOS);
 		bitoffs = savebits;
 		defsym = ds;
-		if (strp->ssize)
+		if (strp->S.ssize)
 			error("%.8s redeclared", ssym->name);
-		strp->ssize = elsize;
+		strp->S.ssize = elsize;
 		*memlist++ = NULL;
-		strp->memlist = gblock((memlist-mems)*sizeof(*memlist));
-		funcbase = curbase;
+		strp->S.memlist = (struct nmlist **)Dblock((memlist-mems)*sizeof(*memlist));
 		for (o=0; &mems[o] != memlist; o++)
-			strp->memlist[o] = mems[o];
+			strp->S.memlist[o] = mems[o];
 		memlist = savememlist;
+		sparent = savesparent;
 		nmems = savenmems;
 		if ((o = symbol()) != RBRACE)
 			goto syntax;
@@ -223,19 +235,20 @@ strdec(mosf, kind)
  * Process a comma-separated list of declarators
  */
 declare(askw, tptr, offset)
-struct hshtab *tptr;
+struct nmlist *tptr;
 {
 	register int o;
 	register int skw, isunion;
+	struct nmlist abs, *aptr;
 
 	skw = askw;
 	isunion = 0;
 	if (skw==MOU) {
 		skw = MOS;
 		isunion++;
-		mosflg = 1;
+		mosflg = FMOS;
 		if ((peeksym=symbol()) == SEMI) {
-			o = length(tptr);
+			o = length((union tree *)tptr);
 			if (o>offset)
 				offset = o;
 		}
@@ -246,13 +259,26 @@ struct hshtab *tptr;
 			peeksym = -1;
 			break;
 		}
-		o = decl1(skw, tptr, isunion?0:offset, NULL);
+		if (skw == MOS) {
+			abs.hclass = 0;
+			abs.hflag = 0;
+			abs.htype = 0;
+			abs.hsubsp = 0;
+			abs.hstrp = 0;
+			abs.nextnm = 0;
+			abs.sparent = 0;
+			abs.hblklev = blklev;
+			strcpy(abs.name, "<none>");
+			aptr = &abs;
+		} else
+			aptr = NULL;
+		o = decl1(skw, tptr, isunion?0:offset, aptr);
 		if (isunion) {
-			o =+ align(CHAR, o, 0);
+			o += align(CHAR, o, 0);
 			if (o>offset)
 				offset = o;
 		} else
-			offset =+ o;
+			offset += o;
 	} while ((o=symbol()) == COMMA);
 	if (o==RBRACE) {
 		peeksym = o;
@@ -267,22 +293,20 @@ struct hshtab *tptr;
  * Process a single declarator
  */
 decl1(askw, atptr, offset, absname)
-struct hshtab *atptr, *absname;
+struct nmlist *atptr, *absname;
 {
-	int t1, chkoff, a, elsize;
+	int t1, a, elsize;
 	register int skw;
 	int type;
-	register struct hshtab *dsym;
-	register struct hshtab *tptr;
+	register struct nmlist *dsym;
+	register struct nmlist *tptr;
 	struct tdim dim;
-	struct field *fldp;
 	int *dp;
 	int isinit;
 
 	skw = askw;
 	tptr = atptr;
-	chkoff = 0;
-	mosflg = skw==MOS;
+	mosflg = skw==MOS? FMOS: 0;
 	dim.rank = 0;
 	if (((peeksym=symbol())==SEMI || peeksym==RPARN) && absname==NULL)
 		return(0);
@@ -292,19 +316,25 @@ struct hshtab *atptr, *absname;
 	if (peeksym==COLON && skw==MOS) {
 		peeksym = -1;
 		t1 = conexp();
+		if (t1<0) {
+			error("Negative field width");
+			t1 = 0;
+		}
 		elsize = align(tptr->htype, offset, t1);
-		bitoffs =+ t1;
+		bitoffs += t1;
 		return(elsize);
 	}
 	t1 = getype(&dim, absname);
 	if (t1 == -1)
 		return(0);
+	if (defsym)
+		absname = NULL;
 	if (tptr->hsubsp) {
 		type = tptr->htype;
 		for (a=0; type&XTYPE;) {
 			if ((type&XTYPE)==ARRAY)
 				dim.dimens[dim.rank++] = tptr->hsubsp[a++];
-			type =>> TYLEN;
+			type >>= TYLEN;
 		}
 	}
 	type = tptr->htype & ~TYPE;
@@ -314,48 +344,61 @@ struct hshtab *atptr, *absname;
 			type = t1 = 0;
 		}
 		type = type<<TYLEN | (t1 & XTYPE);
-		t1 =>> TYLEN;
+		t1 >>= TYLEN;
 	}
-	type =| tptr->htype&TYPE;
-	if (absname)
-		defsym = absname;
-	dsym = defsym;
-	if (dsym->hblklev < blklev)
-		pushdecl(dsym);
-	if (dim.rank == 0)
-		dsym->subsp = NULL;
-	else {
-		dp = gblock(dim.rank*sizeof(dim.rank));
-		funcbase = curbase;
-		if (skw==EXTERN)
-			maxdecl = curbase;
-		for (a=0; a<dim.rank; a++) {
-			if ((t1 = dp[a] = dim.dimens[a])
-			 && (dsym->htype&XTYPE) == ARRAY
-			 && dsym->subsp[a] && t1!=dsym->subsp[a])
-				redec();
-		}
-		dsym->subsp = dp;
-	}
+	type |= tptr->htype&TYPE;
 	if ((type&XTYPE) == FUNC) {
 		if (skw==AUTO)
 			skw = EXTERN;
 		if ((skw!=EXTERN && skw!=TYPEDEF) && absname==NULL)
 			error("Bad func. storage class");
 	}
+	if (defsym)
+		dsym = defsym;
+	else if (absname)
+		dsym = absname;
+	else {
+		error("Name required in declaration");
+		return(0);
+	}
+	if (defsym)
+	if (dsym->hblklev<blklev || dsym->hclass==MOS && skw==MOS) {
+		if (skw==MOS && dsym->sparent==sparent)
+			redec();
+		defsym = dsym;
+		if (skw==EXTERN) {
+			for (; dsym!=NULL; dsym = dsym->nextnm) {
+				if (dsym->hclass==EXTERN
+				 && strncmp(dsym->name, defsym->name, NCPS)==0) {
+					defsym = dsym;
+					break;
+				}
+			}
+			dsym = defsym;
+		} else
+	 		defsym = dsym = pushdecl(dsym);
+	}
+	if (dim.rank == 0)
+		dsym->hsubsp = NULL;
+	else {
+		dp = (int *)Dblock(dim.rank*sizeof(dim.rank));
+		for (a=0; a<dim.rank; a++) {
+			if ((t1 = dp[a] = dim.dimens[a])
+			 && (dsym->htype&XTYPE) == ARRAY
+			 && dsym->hsubsp[a] && t1!=dsym->hsubsp[a])
+				redec();
+		}
+		dsym->hsubsp = dp;
+	}
 	if (!(dsym->hclass==0
 	   || ((skw==ARG||skw==AREG) && dsym->hclass==ARG1)
-	   || (skw==EXTERN && dsym->hclass==EXTERN && dsym->htype==type)))
-		if (skw==MOS && dsym->hclass==MOS && dsym->htype==type)
-			chkoff = 1;
-		else {
-			redec();
-			goto syntax;
-		}
+	   || (skw==EXTERN && dsym->hclass==EXTERN && dsym->htype==type))) {
+		redec();
+		goto syntax;
+	}
 	if (dsym->hclass && (dsym->htype&TYPE)==STRUCT && (type&TYPE)==STRUCT)
 		if (dsym->hstrp != tptr->hstrp) {
-			error("Warning: structure redeclaration");
-			nerror--;
+			error("structure redeclaration");
 		}
 	dsym->htype = type;
 	if (tptr->hstrp)
@@ -364,76 +407,73 @@ struct hshtab *atptr, *absname;
 		dsym->hclass = TYPEDEF;
 		return(0);
 	}
-	if (absname)
-		return(0);
 	if (skw==ARG1) {
-		if (paraml==0)
+		if (paraml==NULL)
 			paraml = dsym;
 		else
-			parame->hoffset = dsym;
+			parame->sparent = (union str *)dsym;
 		parame = dsym;
 		dsym->hclass = skw;
 		return(0);
 	}
 	elsize = 0;
 	if (skw==MOS) {
-		elsize = length(dsym);
+		elsize = length((union tree *)dsym);
 		if ((peeksym = symbol())==COLON) {
 			elsize = 0;
 			peeksym = -1;
 			t1 = conexp();
 			a = align(type, offset, t1);
 			if (dsym->hflag&FFIELD) {
-				if (dsym->hstrp->bitoffs!=bitoffs
-			 	 || dsym->hstrp->flen!=t1)
+				if (dsym->hstrp->F.bitoffs!=bitoffs
+			 	 || dsym->hstrp->F.flen!=t1)
 					redec();
 			} else {
-				dsym->hstrp = gblock(sizeof(*fldp));
-				funcbase = curbase;
+				dsym->hstrp = (union str *)Dblock(sizeof(struct FS));
 			}
-			dsym->hflag =| FFIELD;
-			dsym->hstrp->bitoffs = bitoffs;
-			dsym->hstrp->flen = t1;
-			bitoffs =+ t1;
+			dsym->hflag |= FFIELD;
+			dsym->hstrp->F.bitoffs = bitoffs;
+			dsym->hstrp->F.flen = t1;
+			bitoffs += t1;
 		} else
 			a = align(type, offset, 0);
-		elsize =+ a;
-		offset =+ a;
+		elsize += a;
+		offset += a;
 		if (++nmems >= NMEMS) {
 			error("Too many structure members");
-			nmems =- NMEMS/2;
-			memlist =- NMEMS/2;
+			nmems -= NMEMS/2;
+			memlist -= NMEMS/2;
 		}
 		if (a)
 			*memlist++ = &structhole;
-		if (chkoff && dsym->hoffset != offset)
-			redec();
 		dsym->hoffset = offset;
 		*memlist++ = dsym;
+		dsym->sparent = sparent;
 	}
 	if (skw==REG)
 		if ((dsym->hoffset = goodreg(dsym)) < 0)
 			skw = AUTO;
 	dsym->hclass = skw;
 	isinit = 0;
-	if ((a=symbol())!=COMMA && a!=SEMI && a!=RBRACE)
+	if ((a=symbol()) == ASSIGN)
 		isinit++;
-	if (a!=ASSIGN)
+	else
 		peeksym = a;
 	if (skw==AUTO) {
 	/*	if (STAUTO < 0) {	*/
-			autolen =- rlength(dsym);
+			autolen -= rlength((union tree *)dsym);
 			dsym->hoffset = autolen;
 			if (autolen < maxauto)
 				maxauto = autolen;
 	/*	} else { 			*/
 	/*		dsym->hoffset = autolen;	*/
-	/*		autolen =+ rlength(dsym);	*/
+	/*		autolen += rlength(dsym);	*/
 	/*		if (autolen > maxauto)		*/
 	/*			maxauto = autolen;	*/
 	/*	}			*/
 		if (isinit)
 			cinit(dsym, 0, AUTO);
+		isinit = 0;
 	} else if (skw==STATIC) {
 		dsym->hoffset = isn;
 		if (isinit) {
@@ -441,11 +481,14 @@ struct hshtab *atptr, *absname;
 			if (cinit(dsym, 1, STATIC) & ALIGN)
 				outcode("B", EVEN);
 		} else
-			outcode("BBNBN", BSS, LABEL, isn++, SSPACE, rlength(dsym));
+			outcode("BBNBN", BSS, LABEL, isn++, SSPACE,
+			  rlength((union tree *)dsym));
 		outcode("B", PROG);
-	} else if (skw==REG && isinit)
+		isinit = 0;
+	} else if (skw==REG && isinit) {
 		cinit(dsym, 0, REG);
-	else if (skw==ENUM) {
+		isinit = 0;
+	} else if (skw==ENUM) {
 		if (type!=INT)
 			error("Illegal enumeration %.8s", dsym->name);
 		dsym->hclass = ENUMCON;
@@ -453,8 +496,12 @@ struct hshtab *atptr, *absname;
 		if (isinit)
 			cinit(dsym, 0, ENUMCON);
 		elsize = dsym->hoffset-offset+1;
+		isinit = 0;
 	}
-	prste(dsym);
+	if (absname==0)
+		prste(dsym);
+	if (isinit)
+		peeksym = ASSIGN;
 syntax:
 	return(elsize);
 }
@@ -463,59 +510,41 @@ syntax:
  * Push down an outer-block declaration
  * after redeclaration in an inner block.
  */
-pushdecl(asp)
-struct phshtab *asp;
+struct nmlist *
+pushdecl(sp)
+register struct nmlist *sp;
 {
-	register struct phshtab *sp, *nsp;
+	register struct nmlist *nsp, **hsp;
 
-	sp = asp;
-	nsp = gblock(sizeof(*nsp));
-	maxdecl = funcbase = curbase;
-	cpysymb(nsp, sp);
-	sp->hclass = 0;
-	sp->hflag =& (FKEYW|FMOS);
-	sp->htype = 0;
-	sp->hoffset = 0;
-	sp->hblklev = blklev;
-	sp->hpdown = nsp;
+	nsp = (struct nmlist *)Dblock(sizeof(struct nmlist));
+	*nsp = *sp;
+	nsp->hclass = 0;
+	nsp->hflag &= FKIND;
+	nsp->htype = 0;
+	nsp->hoffset = 0;
+	nsp->hblklev = blklev;
+	nsp->hstrp = NULL;
+	nsp->hsubsp = NULL;
+	nsp->sparent = NULL;
+	hsp = &hshtab[hash(sp->name)];
+	nsp->nextnm = *hsp;
+	*hsp = nsp;
+	return(nsp);
 }
-
-/*
- * Copy the non-name part of a symbol
- */
-cpysymb(s1, s2)
-struct phshtab *s1, *s2;
-{
-	register struct phshtab *rs1, *rs2;
-
-	rs1 = s1;
-	rs2 = s2;
-	rs1->hclass = rs2->hclass;
-	rs1->hflag = rs2->hflag;
-	rs1->htype = rs2->htype;
-	rs1->hoffset = rs2->hoffset;
-	rs1->hsubsp = rs2->hsubsp;
-	rs1->hstrp = rs2->hstrp;
-	rs1->hblklev = rs2->hblklev;
-	rs1->hpdown = rs2->hpdown;
-}
-
 
 /*
  * Read a declarator and get the implied type
  */
-getype(adimp, absname)
-struct tdim *adimp;
-struct hshtab *absname;
+getype(dimp, absname)
+register struct tdim *dimp;
+struct nmlist *absname;
 {
-	static struct hshtab argtype;
+	static struct nmlist argtype;
 	int type;
 	register int o;
-	register struct hshtab *ds;
-	register struct tdim *dimp;
+	register struct nmlist *ds;
 
-	ds = defsym;
-	dimp = adimp;
+	defsym = 0;
 	type = 0;
 	switch(o=symbol()) {
 
@@ -534,7 +563,6 @@ struct hshtab *absname;
 			type = getype(dimp, absname);
 			if (type==-1)
 				return(type);
-			ds = defsym;
 			if ((o=symbol()) != RPARN)
 				goto syntax;
 			goto getf;
@@ -542,11 +570,8 @@ struct hshtab *absname;
 
 	default:
 		peeksym = o;
-		if (absname) {
-			defsym = ds = absname;
-			absname = NULL;
+		if (absname)
 			goto getf;
-		}
 		break;
 
 	case NAME:
@@ -578,6 +603,7 @@ struct hshtab *absname;
 			}
 			if ((o=symbol()) != RBRACK) {
 				peeksym = o;
+				ds = defsym;
 				cval = conexp();
 				defsym = ds;
 				if ((o=symbol())!=RBRACK)
@@ -625,12 +651,12 @@ align(type, offset, aflen)
 	t = type;
 	ftl = "Field too long";
 	if (flen==0) {
-		a =+ (NBPC+bitoffs-1) / NBPC;
+		a += (NBPC+bitoffs-1) / NBPC;
 		bitoffs = 0;
 	}
 	while ((t&XTYPE)==ARRAY)
 		t = decref(t);
-	if (t!=CHAR) {
+	if (t!=CHAR && t!=UNCHAR) {
 		a = (a+ALIGN) & ~ALIGN;
 		if (a>offset)
 			bitoffs = 0;
@@ -641,14 +667,14 @@ align(type, offset, aflen)
 				error(ftl);
 			if (flen+bitoffs > NBPW) {
 				bitoffs = 0;
-				a =+ NCPW;
+				a += NCPW;
 			}
-		} else if (type==CHAR) {
+		} else if (type==CHAR || type==UNCHAR) {
 			if (flen > NBPC)
 				error(ftl);
 			if (flen+bitoffs > NBPC) {
 				bitoffs = 0;
-				a =+ 1;
+				a += 1;
 			}
 		} else
 			error("Bad type for field");
@@ -678,17 +704,12 @@ redec()
  * a register; if so return the register number
  */
 goodreg(hp)
-struct hshtab *hp;
+struct nmlist *hp;
 {
 	int type;
 
 	type = hp->htype;
-	/*
-	 * Special dispensation for unions
-	 */
-	if (type==STRUCT && length(hp)<=SZINT)
-		type = INT;
-	if ((type!=INT && type!=CHAR && type!=UNSIGN && (type&XTYPE)==0)
+	if ((type!=INT && type!=UNSIGN && (type&XTYPE)==0)
 	 || (type&XTYPE)>PTR || regvar<3)
 		return(-1);
 	return(--regvar);

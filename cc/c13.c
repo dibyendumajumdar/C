@@ -5,7 +5,7 @@
 /*
  * Operator dope table-- see description in c0.
  */
-int opdope[] {
+int opdope[] = {
 	000000,	/* EOFC */
 	000000,	/* ; */
 	000000,	/* { */
@@ -35,11 +35,11 @@ int opdope[] {
 	000400,	/* long const <= 16 bits */
 	000400,	/* autoi, *r++ */
 	000400,	/* autod, *--r */
-	000000,	/* 29 */
-	034203,	/* ++pre */
-	034203,	/* --pre */
-	034203,	/* ++post */
-	034203,	/* --post */
+	000400,	/* () empty arglist */
+	034213,	/* ++pre */
+	034213,	/* --pre */
+	034213,	/* ++post */
+	034213,	/* --post */
 	034220,	/* !un */
 	034202,	/* &un */
 	034220,	/* *un */
@@ -76,29 +76,29 @@ int opdope[] {
 	024005,	/* <=p */
 	024005,	/* >p */
 	024005,	/* >=p */
-	012213,	/* =+ */
-	012213,	/* =- */
-	012213,	/* =* */
-	012213,	/* =/ */
-	012213,	/* =% */
-	012253,	/* =>> */
-	012253,	/* =<< */
-	012253,	/* =& */
-	012253,	/* =| */
-	012253,	/* =^ */
+	012213,	/* += */
+	012213,	/* -= */
+	012213,	/* *= */
+	012213,	/* /= */
+	012213,	/* %= */
+	012253,	/* >>= */
+	012253,	/* <<= */
+	012253,	/* &= */
+	012253,	/* |= */
+	012253,	/* ^= */
 	012213,	/* = */
 	030001, /* & for tests */
 	032001,	/*  * (long) */
 	032001,	/*  / (long) */
 	032001,	/* % (long) */
-	012253,	/* =& ~ */
-	012213,	/* =* (long) */
+	012253,	/* &= ~ */
+	012213,	/* *= (long) */
 	012213,	/* / (long) */
 	012213,	/* % (long) */
 	000000,	/* 89 */
 	014201,	/* ? */
 	026061,	/* long << */
-	012253,	/* long =<< */
+	012253,	/* long <<= */
 	000101,	/* max */
 	000101,	/* maxp */
 	000101,	/* min */
@@ -113,7 +113,7 @@ int opdope[] {
 	000000,	/* branch cond */
 	000400,	/* set nregs */
 	000000, /* 106 */
-	000000,	/* 107 */
+	030001,	/* 107 */
 	000000,	/* 108 */
 	000000,	/* int->char */
 	000000,	/* force r0 */
@@ -123,9 +123,13 @@ int opdope[] {
 	000000,	/* 114 */
 	000000,	/* structure assign */
 	000001,	/* struct assignment setup */
+	032001,	/* unsigned / */
+	032001,	/* unsigned % */
+	012213,	/* unsigned /= */
+	012213,	/* unsigned %= */
 };
 
-char	*opntab[] {
+char	*opntab[] = {
 	0,
 	0,
 	0,
@@ -155,7 +159,7 @@ char	*opntab[] {
 	"long constant",
 	"*r++",
 	"*--r",
-	0,
+	"()",
 	"++pre",
 	"--pre",
 	"++post",
@@ -233,7 +237,7 @@ char	*opntab[] {
 	"branch cond",
 	"set nregs",
 	"load value",
-	0,
+	"ptr->integer",
 	0,
 	"int->char",
 	"force register",
@@ -243,60 +247,66 @@ char	*opntab[] {
 	"",
 	"=structure",
 	"= (struct setup)",
+	"/",
+	"%",
+	"/=",
+	"%=",
 };
 
 /*
  * Strings for instruction tables.
  */
-char	mov[]	"mov";
-char	clr[]	"clr";
-char	cmp[]	"cmp";
-char	tst[]	"tst";
-char	add[]	"add";
-char	sub[]	"sub";
-char	inc[]	"inc";
-char	dec[]	"dec";
-char	mul[]	"mul";
-char	div[]	"div";
-char	asr[]	"asr";
-char	ash[]	"ash";
-char	asl[]	"asl";
-char	bic[]	"bic";
-char	bic1[]	"bic $1,";
-char	bit[]	"bit";
-char	bit1[]	"bit $1,";
-char	bis[]	"bis";
-char	bis1[]	"bis $1,";
-char	xor[]	"xor";
-char	neg[]	"neg";
-char	com[]	"com";
-char	stdol[]	"*$";
-char	ashc[]	"ashc";
-char	slmul[]	"lmul";
-char	sldiv[]	"ldiv";
-char	slrem[]	"lrem";
-char	almul[]	"almul";
-char	aldiv[]	"aldiv";
-char	alrem[]	"alrem";
-char	jeq[]	"jeq";
-char	jne[]	"jne";
-char	jle[]	"jle";
-char	jgt[]	"jgt";
-char	jlt[]	"jlt";
-char	jge[]	"jge";
-char	jlos[]	"jlos";
-char	jhi[]	"jhi";
-char	jlo[]	"jlo";
-char	jhis[]	"jhis";
-char	nop[]	"/nop";
-char	jbr[]	"jbr";
+char	mov[]	= "mov";
+char	clr[]	= "clr";
+char	cmp[]	= "cmp";
+char	tst[]	= "tst";
+char	add[]	= "add";
+char	sub[]	= "sub";
+char	inc[]	= "inc";
+char	dec[]	= "dec";
+char	mul[]	= "mul";
+char	div[]	= "div";
+char	asr[]	= "asr";
+char	ash[]	= "ash";
+char	asl[]	= "asl";
+char	bic[]	= "bic";
+char	bic1[]	= "bic $1,";
+char	bit[]	= "bit";
+char	bit1[]	= "bit $1,";
+char	bis[]	= "bis";
+char	bis1[]	= "bis $1,";
+char	xor[]	= "xor";
+char	neg[]	= "neg";
+char	com[]	= "com";
+char	stdol[]	= "*$";
+char	ashc[]	= "ashc";
+char	slmul[]	= "lmul";
+char	sldiv[]	= "ldiv";
+char	slrem[]	= "lrem";
+char	almul[]	= "almul";
+char	aldiv[]	= "aldiv";
+char	alrem[]	= "alrem";
+char	udiv[]	= "udiv";
+char	urem[]	= "urem";
+char	jeq[]	= "jeq";
+char	jne[]	= "jne";
+char	jle[]	= "jle";
+char	jgt[]	= "jgt";
+char	jlt[]	= "jlt";
+char	jge[]	= "jge";
+char	jlos[]	= "jlos";
+char	jhi[]	= "jhi";
+char	jlo[]	= "jlo";
+char	jhis[]	= "jhis";
+char	nop[]	= "/nop";
+char	jbr[]	= "jbr";
 
 /*
  * Instruction tables, accessed by
  * I (first operand) or I' (second) macros.
  */
 
-struct instab instab[] {
+struct instab instab[] = {
 	LOAD,	mov,	tst,
 	ASSIGN,	mov,	clr,
 	EQUAL,	cmp,	tst,
@@ -350,6 +360,10 @@ struct instab instab[] {
 	LASMOD,	alrem,	alrem,
 	ULSH,	ashc,	ashc,
 	ASULSH,	ashc,	ashc,
+	UDIV,	udiv,	udiv,
+	UMOD,	urem,	urem,
+	ASUDIV,	udiv,	udiv,
+	ASUMOD,	urem,	urem,
 	0,	0,	0};
 
 /*
@@ -361,7 +375,7 @@ struct instab instab[] {
  * instruction is used; it clears the c-bit
  * the c-bit so ptr tests are funny.
  */
-struct instab branchtab[] {
+struct instab branchtab[] = {
 	EQUAL,	jeq,	jne,
 	NEQUAL,	jne,	jeq,
 	LESSEQ,	jle,	jgt,

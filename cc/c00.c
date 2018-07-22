@@ -1,4 +1,3 @@
-#
 /* C compiler
  *
  *
@@ -11,16 +10,15 @@
 
 #include "c0.h"
 
-int	isn	1;
-int	peeksym	-1;
-int	line	1;
-struct	tnode	funcblk { NAME, 0, NULL, NULL, NULL, NULL };
+int	isn	= 1;
+int	peeksym	= -1;
+int	line	= 1;
+struct	tnode	funcblk = { NAME };
 
 struct kwtab {
 	char	*kwname;
 	int	kwval;
-} kwtab[]
-{
+} kwtab[] = {
 	"int",		INT,
 	"char",		CHAR,
 	"float",	FLOAT,
@@ -30,6 +28,7 @@ struct kwtab {
 	"unsigned",	UNSIGN,
 	"union",	UNION,
 	"short",	INT,
+	"void",		VOID,
 	"auto",		AUTO,
 	"extern",	EXTERN,
 	"static",	STATIC,
@@ -52,13 +51,20 @@ struct kwtab {
 	0,		0,
 };
 
+union	tree *cmst[CMSIZ];
+union	tree **cp = cmst;
+
 main(argc, argv)
 char *argv[];
 {
-	register char *sp;
-	register i;
+	register unsigned i;
 	register struct kwtab *ip;
 
+	if (argc>1 && strcmp(argv[1], "-u")==0) {
+		argc--;
+		argv++;
+		unscflg++;
+	}
 	if(argc<4) {
 		error("Arg count");
 		exit(1);
@@ -80,65 +86,60 @@ char *argv[];
 	 * these locations, it is looked up in in the keyword
 	 * table first.
 	 */
-	for (ip=kwtab; (sp = ip->kwname); ip++) {
-		i = 0;
-		while (*sp)
-			i =+ *sp++;
-		hshtab[i%HSHSIZ].hflag = FKEYW;
+	for (ip=kwtab; ip->kwname; ip++) {
+		i = hash(ip->kwname);
+		kwhash[i/LNBPW] |= 1 << (i%LNBPW);
 	}
-	coremax = funcbase = curbase = sbrk(0);
+	coremax = locbase = sbrk(0);
 	while(!eof)
 		extdef();
 	outcode("B", EOFC);
 	strflg++;
 	outcode("B", EOFC);
+	blkend();
 	exit(nerror!=0);
 }
 
 /*
  * Look up the identifier in symbuf in the symbol table.
  * If it hashes to the same spot as a keyword, try the keyword table
- * first.  An initial "." is ignored in the hash.
+ * first.
  * Return is a ptr to the symbol table entry.
  */
 lookup()
 {
-	int ihash;
-	register struct hshtab *rp;
+	unsigned ihash;
+	register struct nmlist *rp;
 	register char *sp, *np;
 
-	ihash = 0;
-	sp = symbuf;
-	while (sp<symbuf+NCPS)
-		ihash =+ *sp++&0177;
-	rp = &hshtab[ihash%HSHSIZ];
-	if (rp->hflag&FKEYW)
+	ihash = hash(symbuf);
+	if (kwhash[ihash/LNBPW] & (1 << (ihash%LNBPW)))
 		if (findkw())
 			return(KEYW);
-	while (*(np = rp->name)) {
+	rp = hshtab[ihash];
+	while (rp) {
+		np = rp->name;
 		for (sp=symbuf; sp<symbuf+NCPS;)
 			if (*np++ != *sp++)
 				goto no;
-		if (mossym != (rp->hflag&FMOS))
+		if (mossym != (rp->hflag&FKIND))
 			goto no;
 		csym = rp;
 		return(NAME);
 	no:
-		if (++rp >= &hshtab[HSHSIZ])
-			rp = hshtab;
+		rp = rp->nextnm;
 	}
-	if(++hshused >= HSHSIZ) {
-		error("Symbol table overflow");
-		exit(1);
-	}
+	rp = (struct nmlist *)Dblock(sizeof(struct nmlist));
+	rp->nextnm = hshtab[ihash];
+	hshtab[ihash] = rp;
 	rp->hclass = 0;
 	rp->htype = 0;
 	rp->hoffset = 0;
-	rp->subsp = NULL;
-	rp->strp = NULL;
-	rp->hpdown = NULL;
+	rp->hsubsp = NULL;
+	rp->hstrp = NULL;
+	rp->sparent = NULL;
 	rp->hblklev = blklev;
-	rp->hflag =| mossym;
+	rp->hflag = mossym;
 	sp = symbuf;
 	for (np=rp->name; sp<symbuf+NCPS;)
 		*np++ = *sp++;
@@ -148,8 +149,6 @@ lookup()
 
 /*
  * Search the keyword table.
- * Ignore initial "." to avoid member-of-structure
- * problems.
  */
 findkw()
 {
@@ -178,11 +177,10 @@ findkw()
  * peeksym is a pushed-back symbol, peekc is a pushed-back
  * character (after peeksym).
  * mosflg means that the next symbol, if an identifier,
- * is a member of structure or a structure tag, and it
- * gets a "." prepended to it to distinguish
- * it from other identifiers.
+ * is a member of structure or a structure tag or an enum tag
  */
-symbol() {
+symbol()
+{
 	register c;
 	register char *sp;
 	register tline;
@@ -233,15 +231,8 @@ loop:
 		line = tline;
 		return(symbol());
 
-	case INSERT:		/* ignore newlines */
-		inhdr = 1;
-		c = getchar();
-		goto loop;
-
 	case NEWLN:
-		if (!inhdr)
-			line++;
-		inhdr = 0;
+		line++;
 
 	case SPACE:
 		c = getchar();
@@ -251,41 +242,21 @@ loop:
 		return(subseq(c,PLUS,INCBEF));
 
 	case MINUS:
-		return(subseq(c,subseq('>',MINUS,ARROW),DECBEF));
+		if (subseq(c, 0, 1))
+			return(DECBEF);
+		return(subseq('>', MINUS, ARROW));
 
 	case ASSIGN:
-		c = spnextchar();
-		peekc = 0;
-		if (c=='=')
-			return(EQUAL);
-		if (c==' ')
-			return(ASSIGN);
-		if (c=='<' || c=='>') {
-			if (spnextchar() != c) {
-				peeksym = ctab[c];
-				return(ASSIGN);
-			}
-			peekc = 0;
-			return(c=='<'? ASLSH: ASRSH);
-		}
-		if (ctab[c]>=PLUS && ctab[c]<=EXOR) {
-			if (spnextchar() != ' '
-			 && (c=='-' || c=='&' || c=='*')) {
-				error("Warning: %c= operator assumed", c);
-				nerror--;
-			}
-			c = ctab[c];
-			return(c+ASPLUS-PLUS);
-		}
-		peekc = c;
-		return(ASSIGN);
+		return(subseq(c, ASSIGN, EQUAL));
 
 	case LESS:
-		if (subseq(c,0,1)) return(LSHIFT);
+		if (subseq(c,0,1))
+			return(LSHIFT);
 		return(subseq('=',LESS,LESSEQ));
 
 	case GREAT:
-		if (subseq(c,0,1)) return(RSHIFT);
+		if (subseq(c,0,1))
+			return(RSHIFT);
 		return(subseq('=',GREAT,GREATEQ));
 
 	case EXCLA:
@@ -336,11 +307,8 @@ loop:
 		}
 		while(sp<symbuf+NCPS)
 			*sp++ = '\0';
-		mossym = 0;
-		if (mosflg) {
-			mossym = FMOS;
-			mosflg = 0;
-		}
+		mossym = mosflg;
+		mosflg = 0;
 		peekc = c;
 		if ((c=lookup())==KEYW && cval==SIZEOF)
 			c = SIZEOF;
@@ -387,18 +355,18 @@ getnum()
 		*np++ = c;
 		if (ctab[c]==DIGIT || (base==16) && ('a'<=c&&c<='f'||'A'<=c&&c<='F')) {
 			if (base==8)
-				lcval =<< 3;
+				lcval <<= 3;
 			else if (base==10)
 				lcval = ((lcval<<2) + lcval)<<1;
 			else
-				lcval =<< 4;
+				lcval <<= 4;
 			if (ctab[c]==DIGIT)
-				c =- '0';
+				c -= '0';
 			else if (c>='a')
-				c =- 'a'-10;
+				c -= 'a'-10;
 			else
-				c =- 'A'-10;
-			lcval =+ c;
+				c -= 'A'-10;
+			lcval += c;
 			ndigit++;
 			if (c>maxdigit)
 				maxdigit = c;
@@ -467,12 +435,12 @@ subseq(c,a,b)
  * or in the string temp file labelled by
  * lab.
  */
-putstr(lab, amax)
+putstr(lab, max)
+register max;
 {
-	register int c, max;
+	register int c;
 
 	nchstr = 0;
-	max = amax;
 	if (lab) {
 		strflg++;
 		outcode("BNB", LABEL, lab, BDATA);
@@ -507,7 +475,7 @@ getcc()
 	char realc;
 
 	cval = 0;
-	ccp = &cval;
+	ccp = (char *)&cval;
 	cc = 0;
 	while((c=mapch('\'')) >= 0)
 		if(cc++ < LNCPW)
@@ -570,8 +538,8 @@ loop:
 			n = 0;
 			c = 0;
 			while (++c<=3 && '0'<=a && a<='7') {
-				n =<< 3;
-				n =+ a-'0';
+				n <<= 3;
+				n += a-'0';
 				a = getchar();
 			}
 			mpeek = a;
@@ -581,9 +549,7 @@ loop:
 			return('\r');
 
 		case '\n':
-			if (!inhdr)
-				line++;
-			inhdr = 0;
+			line++;
 			a = getchar();
 			goto loop;
 		}
@@ -598,20 +564,19 @@ loop:
  * "," or ":" because those delimiters are special
  * in initializer (and some other) expressions.
  */
-struct tnode *
-tree()
+union tree *
+tree(eflag)
 {
 	int *op, opst[SSIZE], *pp, prst[SSIZE];
 	register int andflg, o;
-	register struct hshtab *cs;
+	register struct nmlist *cs;
 	int p, ps, os;
-	struct tnode *cmst[CMSIZ];
-	struct lnode *lcp;
+	char *svtree;
+	static struct cnode garbage = { CON, INT, (int *)NULL, (union str *)NULL, 0 };
 
-	curbase = funcbase;
+	svtree = starttree();
 	op = opst;
 	pp = prst;
-	cp = cmst;
 	*op = SEOF;
 	*pp = 06;
 	andflg = 0;
@@ -634,12 +599,8 @@ advanc:
 				cs->htype = FUNC;
 			} else {
 				cs->hclass = STATIC;
-				error("%.8s undefined; func. %.8s", cs->name, funcsym->name);
-				if (initflg) {
-					cs->hclass = EXTERN;
-					error("(Warning only)");
-					nerror =- 2;
-				}
+				error("%.8s undefined; func. %.8s", cs->name,
+					funcsym?funcsym->name:"(none)");
 			}
 		*cp++ = nblock(cs);
 		goto tand;
@@ -649,11 +610,11 @@ advanc:
 		goto tand;
 
 	case LCON:
-		cs = gblock(sizeof(*lcp));
-		cs->op = LCON;
-		cs->type = LONG;
-		cs->lvalue = lcval;
-		*cp++ = cs;
+		*cp = (union tree *)Tblock(sizeof(struct lnode));
+		(*cp)->l.op = LCON;
+		(*cp)->l.type = LONG;
+		(*cp)->l.lvalue = lcval;
+		cp++;
 		goto tand;
 
 	case CON:
@@ -663,10 +624,11 @@ advanc:
 	/* fake a static char array */
 	case STRING:
 		putstr(cval, 0);
-		cs = gblock(sizeof(*cs));
+		cs = (struct nmlist *)Tblock(sizeof(struct nmlist));
 		cs->hclass = STATIC;
 		cs->hoffset = cval;
-		*cp++ = block(NAME, ARRAY+CHAR, &nchstr, NULL, cs);
+		*cp++ = block(NAME, unscflg? ARRAY+UNCHAR:ARRAY+CHAR, &nchstr,
+		  (union str *)NULL, (union tree *)cs, TNULL);
 
 	tand:
 		if(cp>=cmst+CMSIZ) {
@@ -683,7 +645,7 @@ advanc:
 		if (*op != LPARN || andflg)
 			goto syntax;
 		peeksym = o;
-		*cp++ = xprtype(gblock(sizeof(*xprtype())));
+		*cp++ = xprtype();
 		if ((o=symbol()) != RPARN)
 			goto syntax;
 		o = CAST;
@@ -699,7 +661,7 @@ advanc:
 	case INCBEF:
 	case DECBEF:
 		if (andflg)
-			o =+ 2;
+			o += 2;
 		goto oponst;
 
 	case COMPL:
@@ -746,7 +708,7 @@ advanc:
 
 	case DOT:
 	case ARROW:
-		mosflg++;
+		mosflg = FMOS;
 		break;
 
 	case ASSIGN:
@@ -764,8 +726,13 @@ advanc:
 	andflg = 0;
 
 oponst:
-	p = (opdope[o]>>9) & 077;
+	p = (opdope[o]>>9) & 037;
 opon1:
+	if (o==COLON && op[0]==COLON && op[-1]==QUEST) {
+		build(*op--);
+		build(*op--);
+		pp -= 2;
+	}
 	ps = *pp;
 	if (p>ps || p==ps && (opdope[o]&RASSOC)!=0) {
 		switch (o) {
@@ -795,11 +762,16 @@ opon1:
 		goto advanc;
 	}
 	--pp;
-	switch (os = *op--) {
+	os = *op--;
+	if (andflg==0 && p>5 && ((opdope[o]&BINARY)==0 || o>=INCBEF&&o<=DECAFT) && opdope[os]&BINARY)
+		goto syntax;
+	switch (os) {
 
 	case SEOF:
 		peeksym = o;
 		build(0);		/* flush conversions */
+		if (eflag)
+			endtree(svtree);
 		return(*--cp);
 
 	case COMMA:
@@ -814,7 +786,8 @@ opon1:
 		goto advanc;
 
 	case MCALL:
-		*cp++ = NULL;	/* empty arglist */
+		*cp++ = block(NULLOP, INT, (int *)NULL,
+		  (union str *)NULL, TNULL, TNULL);
 		os = CALL;
 		break;
 
@@ -842,34 +815,30 @@ opon1:
 syntax:
 	error("Expression syntax");
 	errflush(o);
-	return(0);
+	if (eflag)
+		endtree(svtree);
+	return((union tree *) &garbage);
 }
 
-struct hshtab *
-xprtype(atyb)
-struct hshtab *atyb;
+union tree *
+xprtype()
 {
-	register struct hshtab *tyb;
-	struct hshtab typer;
+	struct nmlist typer, absname;
 	int sc;
-	register char *md, *fb;
-	struct tnode *scp;
+	register union tree **scp;
 
-	tyb = atyb;
-	fb = funcbase;
-	md = maxdecl;
 	scp = cp;
-	funcbase = curbase;
 	sc = DEFXTRN;		/* will cause error if class mentioned */
 	getkeywords(&sc, &typer);
-	tyb->hclass = 0;
-	tyb->hblklev = 0;
-	decl1(&sc, &typer, 0, tyb);
-	funcbase = fb;
-	maxdecl = md;
+	absname.hclass = 0;
+	absname.hblklev = blklev;
+	absname.hsubsp = NULL;
+	absname.hstrp = NULL;
+	absname.htype = 0;
+	decl1(sc, &typer, 0, &absname);
 	cp = scp;
-	tyb->op = ETYPE;
-	return(tyb);
+	return(block(ETYPE, absname.htype, absname.hsubsp,
+	   absname.hstrp, TNULL, TNULL));
 }
 
 char *
@@ -877,8 +846,9 @@ copnum(len)
 {
 	register char *s1, *s2, *s3;
 
-	s1 = s2 = gblock((len+LNCPW-1) & ~(LNCPW-1));
+	s1 = s2 = Tblock((len+LNCPW-1) & ~(LNCPW-1));
 	s3 = numbuf;
-	while (*s2++ = *s3++);
+	while (*s2++ = *s3++)
+		;
 	return(s1);
 }
