@@ -351,6 +351,8 @@ loop:
 
 /*
  * Read a number.  Return kind.
+ * integer value read into lcval.
+ * floating point number is read into string numbuf.
  */
 int getnum(void)
 {

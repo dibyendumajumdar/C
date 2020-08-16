@@ -201,13 +201,13 @@ int	nchstr;
 int	nerror;
 struct	nmlist *paraml;
 struct	nmlist *parame;
-int	strflg;
-int	mosflg;
-int	initflg;
+int	strflg; /* Controls output to main file (0) or strings file (>0) */
+int	mosflg; /* mosflg means that the next symbol, if an identifier, is a member of structure or a structure tag or an enum tag */
+int	initflg; /* The initflg prevents the parse from going past "," or ":" because those delimiters are special in initializer (and some other) expressions.*/
 char	sbuf[BUFSIZ];
-FILE	*sbufp;
-FILE	*infp;
-FILE	*outfp;
+FILE	*sbufp; /* String output file */
+FILE	*infp; /* Input file */
+FILE	*outfp; /* Main output file */
 int	regvar;
 int	bitoffs;
 struct	tnode	funcblk;
@@ -429,7 +429,19 @@ const char *opnames[];
 #define	ASSEM	223
 
 /*
-  Flag bits
+  Flag bits - used in opdope to classify op codes
+
+  info on operators:
+   01-- is binary operator
+   02-- left (or only) operand must be lvalue
+   04-- is relational operator
+  010-- is assignment-type operator
+  020-- non-float req. on left
+  040-- non-float req. on right
+ 0100-- is commutative
+ 0200-- is right, not left-associative
+ 0400-- is leaf of tree
+ *0XX000-- XX is priority of operator
 */
 
 #define	BINARY	01
