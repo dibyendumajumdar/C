@@ -292,7 +292,7 @@ a switch to place a value in an agreed-upon register.
 
 Each expression tree, as it is read in, is subjected to
 a fairly comprehensive analysis.  This is performed  by  the
-optim  routine and a number of subroutines; the major things
+`optim`  routine and a number of subroutines; the major things
 done are
 
 1.  Modifications and simplifications of the  tree  so  its
@@ -314,7 +314,7 @@ automatics;  see below), and calls `unoptim` to handle unary
 operators.  For binary operators, it calls itself  to  process
 the operands, then treats each operator separately.  One 
 important case is commutative and associative operators, which
-are handled by acommute.
+are handled by `acommute`.
 
 Here  is a brief catalog of the transformations carried
 out by by `optim` itself.  It is not intended to be  complete.
@@ -330,12 +330,12 @@ they may well be useful on machines other than the PDP-11.
      new form to simplify later processing.
 
 2.   Associative and commutative operators are processed  by
-     the special routine acommute.
+     the special routine `acommute`.
 
-3.   After processing by acommute, the bitwise & operator is
-     turned into a new andn operator; `a  &  b`  becomes  
+3.   After processing by `acommute`, the bitwise `&` operator is
+     turned into a new `andn` operator; `a  &  b`  becomes  
      `a andn  ~b`.  This is done because the PDP-11 provides no
-     and operator, but only `andn`.  A similar  transformation
+     `and` operator, but only `andn`.  A similar  transformation
      takes place for `=&`.
 
 4.   Relationals  are  turned around so the more complicated
@@ -344,8 +344,8 @@ they may well be useful on machines other than the PDP-11.
      algorithm prefers to have	the  right  operand  require
      fewer registers than the left.
 
-5.   An  expression  minus a constant is turned into the 
-     expression plus the negative constant, and  the  acommute
+5.   An  expression  `minus` a constant is turned into the 
+     expression plus the negative constant, and  the  `acommute`
      routine  is  called to take advantage of the properties
      of addition.
 
