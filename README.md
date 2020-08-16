@@ -19,3 +19,7 @@ The `master` contains the version that I am working on.
 ## Current Status
 
 See the `cc` subproject for its status. 
+
+## Dennis Ritchie on various aspects of C
+
+* [comp.lang.c posts by Dennis Ritchie](https://github.com/dibyendumajumdar/C/wiki)
