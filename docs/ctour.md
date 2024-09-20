@@ -299,9 +299,9 @@ done are
     value may be computed more efficiently and conveniently
     by the code generator.
 
-2.  Marking each interior node with an estimate of the 
-    number  of registers required to evaluate it.  This 
-    register count is needed to guide the code generation  
+2.  Marking each interior node with an estimate of the
+    number  of registers required to evaluate it.  This
+    register count is needed to guide the code generation
     algorithm.
 
 One  thing  that is definitely not done is discovery or
