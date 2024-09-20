@@ -34,12 +34,12 @@ are most noticeable are
 
 1.  Storage  allocation  for  automatic variables and arguments 
     has already been performed, and  nodes  for	such
-    variables refer to them by offset from a display pointer.  
+    variables refer to them by offset from a display pointer.
     Type conversion  (for  example,  from  integer  to
     pointer)  has  already occurred using the assumption of
     byte addressing and 2-byte words.
 
-2.  Data representations suitable to  the  PDP-11  are  assumed;  
+2.  Data representations suitable to  the  PDP-11  are  assumed;
     in  particular,  floating	point  constants are
     passed as four words in the machine representation.
 
@@ -70,8 +70,8 @@ are	transmitted in a reverse-Polish notation; as
 they are being read, a tree is built which is isomorphic  to
 the  tree  constructed	in the first phase.  Expressions are
 passed as a whole, with no non-expression  operators  intervening.   
-The reader maintains a stack; each leaf of the ex-
-pression tree (name, constant) is pushed on the stack;	each
+The reader maintains a stack; each leaf of the expression tree 
+(name, constant) is pushed on the stack;	each
 unary operator replaces the top of the stack by a node whose
 operand is the old top-of-stack; each  binary  operator  replaces	
 the top pair on the stack with a single entry.	When
