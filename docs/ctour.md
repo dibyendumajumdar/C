@@ -57,21 +57,21 @@ names.	Each name is terminated by a null character.
 There is no alignment requirement for numerical operands and
 so there is no padding after a name string.
 
-The binary representation was chosen to avoid  the  ne-
-cessity of converting to and from character form and to minimize 
-the size of the files.  It would be very easy to	make
+The binary representation was chosen to avoid  the  necessity 
+of converting to and from character form and to minimize 
+the size of the files.  It would be very easy to make
 each  operator-operand	'line'	in  the  file  be a genuine,
-printable line, with the numbers in octal or  decimal;	this
+printable line, with the numbers in octal or  decimal; this
 in fact was the representation originally used.
 
 The  operators  fall  naturally into two classes: those
-which represent part of an expression, and all others.	 Expressions  
-are	transmitted in a reverse-Polish notation; as
+which represent part of an expression, and all others. Expressions  
+are transmitted in a reverse-Polish notation; as
 they are being read, a tree is built which is isomorphic  to
 the  tree  constructed	in the first phase.  Expressions are
 passed as a whole, with no non-expression  operators  intervening.   
 The reader maintains a stack; each leaf of the expression tree 
-(name, constant) is pushed on the stack;	each
+(name, constant) is pushed on the stack; each
 unary operator replaces the top of the stack by a node whose
 operand is the old top-of-stack; each  binary  operator  replaces	
 the top pair on the stack with a single entry.	When
@@ -93,8 +93,8 @@ marks the end of an input file.
 specifies a sequence of bytes to be assembled as static
 data.  It is followed by pairs of words; the first member 
 of the pair is non-zero to indicate that  the	data
-continue;	a zero flag is not followed by data and terminates 
-the operator.  The data bytes occupy  the	low-order 
+continue; a zero flag is not followed by data and terminates 
+the operator. The data bytes occupy the	low-order 
 part of a word.
 
 ### `WDATA flag data ...`
@@ -126,13 +126,13 @@ data or function definition.
 
 ### `CSPACE name size`
 
-indicates that the name refers to	a  data  area  whose
+indicates that the name refers to a  data  area  whose
 size  is the specified number of bytes.  It is produced
 for external data definitions without explicit initialization.
 
 ### `SSPACE size`
 
-indicates	that size bytes should be set aside for data
+indicates that size bytes should be set aside for data
 storage.  It is used to pad out  short  initializations
 of  external  data and to reserve space for static (internal) data.  
 It will be preceded  by  an  appropriate
@@ -141,7 +141,7 @@ label.
 ### `EVEN`
 
 is  produced  after each external data definition whose
-size is not an integral number of	words.	 It  is  not
+size is not an integral number of words. It  is  not
 produced  after  strings  except when they initialize a
 character array.
 
